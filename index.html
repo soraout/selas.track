@@ -1,0 +1,2008 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Трекер продаж</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --c-accent: var(--tg-theme-button-color, #2f7cf6);
+    --c-accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --c-hint: var(--tg-theme-hint-color, #8b8f96);
+    --c-link: var(--tg-theme-link-color, #2f7cf6);
+    --c-destructive: var(--tg-theme-destructive-text-color, #e5484d);
+    --c-ok: #22b573;
+    --c-warn: #e9a13b;
+    --c-bad: #e5484d;
+    --c-sep: var(--tg-theme-section-separator-color, rgba(128,128,128,.18));
+    --c-secondary: var(--tg-theme-secondary-bg-color, #f1f2f4);
+    --c-bg: var(--tg-theme-bg-color, #ffffff);
+    --c-text: var(--tg-theme-text-color, #16181c);
+    --radius: 16px;
+  }
+
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html{ -webkit-text-size-adjust: 100%; }
+  body{
+    margin: 0;
+    background-color: var(--c-bg);
+    color: var(--c-text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.42;
+    min-height: 100vh;
+    padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    overscroll-behavior-y: contain;
+  }
+  button, input, select, textarea{ font-family: inherit; font-size: inherit; color: inherit; }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px 10px;
+    background: var(--c-bg);
+    border-bottom: 1px solid var(--c-sep);
+  }
+  .topbar-txt{ flex: 1; min-width: 0; }
+  .topbar-title{ font-size: 17px; font-weight: 650; letter-spacing: -.2px; }
+  .topbar-sub{ font-size: 12px; color: var(--c-hint); margin-top: 2px; }
+  .btn-ghost{
+    border: 0; background: var(--c-secondary); color: var(--c-text);
+    padding: 8px 14px; border-radius: 11px; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn-ghost:active{ opacity: .65; }
+
+  /* ---------- Layout ---------- */
+  main{ padding: 12px 16px 20px; }
+  .view{ display: none; }
+  .view.active{ display: block; animation: fade .18s ease; }
+  @keyframes fade{ from{ opacity: 0; transform: translateY(4px); } to{ opacity: 1; transform: none; } }
+
+  .card{
+    background: var(--c-secondary);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .card-title{ font-size: 14px; font-weight: 650; letter-spacing: -.1px; }
+  .card-sub{ font-size: 12px; color: var(--c-hint); margin-top: 2px; }
+  .row-between{ display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .section-title{
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+    color: var(--c-hint); margin: 18px 2px 8px;
+  }
+  .section-title:first-child{ margin-top: 4px; }
+
+  /* ---------- Hero ---------- */
+  .hero{ padding: 16px; }
+  .hero-top{ display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .hero-label{ font-size: 12px; color: var(--c-hint); font-weight: 600; }
+  .hero-value{ font-size: 25px; font-weight: 750; letter-spacing: -.7px; margin-top: 2px; }
+  .hero-target{ font-size: 14px; font-weight: 600; color: var(--c-hint); letter-spacing: 0; }
+  .hero-foot{
+    display: flex; justify-content: space-between; gap: 8px;
+    font-size: 12px; color: var(--c-hint); margin-top: 9px;
+  }
+
+  .pill{
+    padding: 5px 10px; border-radius: 9px; font-size: 12.5px; font-weight: 700;
+    background: rgba(128,128,128,.16); white-space: nowrap;
+  }
+  .pill.ok{ background: rgba(34,181,115,.16); color: var(--c-ok); }
+  .pill.warn{ background: rgba(233,161,59,.18); color: var(--c-warn); }
+  .pill.bad{ background: rgba(229,72,77,.16); color: var(--c-bad); }
+
+  .bar{ height: 8px; border-radius: 6px; background: rgba(128,128,128,.2); overflow: hidden; margin-top: 11px; }
+  .bar-fill{ height: 100%; border-radius: 6px; background: var(--c-accent); transition: width .35s ease; }
+  .bar-fill.ok{ background: var(--c-ok); }
+  .bar-fill.warn{ background: var(--c-warn); }
+  .bar-fill.bad{ background: var(--c-bad); }
+
+  /* ---------- Grids / metrics ---------- */
+  .grid-2{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid-2 > *{ margin-bottom: 0; }
+
+  .metric{ padding: 13px 14px; }
+  .metric-label{ font-size: 12px; color: var(--c-hint); font-weight: 600; }
+  .metric-value{ font-size: 21px; font-weight: 720; letter-spacing: -.5px; margin-top: 3px; }
+  .metric-sub{ font-size: 11.5px; color: var(--c-hint); margin-top: 2px; }
+  .metric-value.ok{ color: var(--c-ok); }
+  .metric-value.warn{ color: var(--c-warn); }
+  .metric-value.bad{ color: var(--c-bad); }
+
+  .cat-card{ padding: 13px 14px; }
+  .cat-head{ display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .cat-name{ font-size: 13px; font-weight: 650; }
+  .cat-pct{ font-size: 13px; font-weight: 700; color: var(--c-hint); }
+  .cat-pct.ok{ color: var(--c-ok); } .cat-pct.warn{ color: var(--c-warn); } .cat-pct.bad{ color: var(--c-bad); }
+  .cat-vals{ font-size: 12px; color: var(--c-hint); margin-top: 4px; }
+
+  .hint-box{
+    display: flex; gap: 9px; align-items: flex-start;
+    background: rgba(128,128,128,.1); border-radius: 12px;
+    padding: 11px 13px; font-size: 12.5px; color: var(--c-hint);
+    margin-bottom: 10px;
+  }
+
+  /* ---------- Forms ---------- */
+  .field{ display: block; margin-top: 10px; }
+  .field-label{ display: block; font-size: 12px; color: var(--c-hint); font-weight: 600; margin-bottom: 5px; }
+  .field-row{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  input[type="number"], input[type="text"], input[type="date"], select, textarea{
+    width: 100%;
+    background: var(--c-bg);
+    border: 1px solid var(--c-sep);
+    border-radius: 11px;
+    padding: 11px 12px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color .15s;
+    min-height: 44px;
+  }
+  input:focus, select:focus, textarea:focus{ border-color: var(--c-accent); }
+  input[type="date"]{ -webkit-appearance: none; appearance: none; }
+  select{ -webkit-appearance: none; appearance: none; background-image: none; }
+  textarea{ resize: vertical; min-height: 60px; }
+  input::placeholder, textarea::placeholder{ color: var(--c-hint); opacity: .75; }
+
+  .btn{
+    display: block; width: 100%; border: 0; cursor: pointer;
+    background: var(--c-accent); color: var(--c-accent-text);
+    padding: 13px; border-radius: 12px; font-weight: 650; font-size: 15px;
+    margin-top: 14px; transition: opacity .15s;
+  }
+  .btn:active{ opacity: .8; }
+  .btn.secondary{ background: var(--c-secondary); color: var(--c-text); }
+
+  .mini-btn{
+    border: 0; background: rgba(128,128,128,.14); color: var(--c-text);
+    padding: 7px 11px; border-radius: 9px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .mini-btn.danger{ color: var(--c-destructive); }
+  .mini-btn:active{ opacity: .6; }
+
+  /* ---------- Records ---------- */
+  .rec{
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 0; border-top: 1px solid var(--c-sep);
+  }
+  .rec:first-of-type{ border-top: 0; }
+  .rec-date{ font-size: 13px; font-weight: 650; }
+  .rec-meta{ font-size: 11.5px; color: var(--c-hint); margin-top: 1px; }
+  .rec-actions{ display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* ---------- Charts ---------- */
+  .chart-card{ padding: 14px 14px 10px; }
+  .chart-box{ position: relative; height: 215px; margin-top: 10px; }
+  .dl-row{ display: flex; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
+  .dl-btn{
+    flex: 1; min-width: 76px; border: 0; cursor: pointer;
+    background: rgba(128,128,128,.14); color: var(--c-text);
+    padding: 8px 6px; border-radius: 9px; font-size: 12px; font-weight: 650;
+  }
+  .dl-btn:active{ opacity: .6; }
+
+  /* ---------- Advice ---------- */
+  .advice{
+    border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px;
+    background: var(--c-secondary);
+    border-left: 3.5px solid var(--c-accent);
+  }
+  .advice.ok{ border-left-color: var(--c-ok); }
+  .advice.warn{ border-left-color: var(--c-warn); }
+  .advice.bad{ border-left-color: var(--c-bad); }
+  .advice-title{ font-size: 14px; font-weight: 680; letter-spacing: -.1px; }
+  .advice-body{ font-size: 13px; color: var(--c-hint); margin-top: 6px; line-height: 1.55; }
+  .advice-body ul{ margin: 6px 0 0; padding-left: 17px; }
+  .advice-body li{ margin-bottom: 4px; }
+  .advice-body b{ color: var(--c-text); font-weight: 650; }
+
+  /* ---------- History ---------- */
+  .hist-item{ cursor: pointer; }
+  .hist-item:active{ opacity: .8; }
+  .hist-top{ display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .hist-name{ font-size: 14px; font-weight: 650; }
+  .hist-date{ font-size: 11.5px; color: var(--c-hint); margin-top: 1px; }
+  .hist-metrics{ display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+  .hist-m{ font-size: 11.5px; color: var(--c-hint); }
+  .hist-m b{ display: block; font-size: 14px; color: var(--c-text); font-weight: 680; margin-top: 1px; }
+
+  .cmp-row{
+    display: grid; grid-template-columns: 1.3fr 1fr 1fr .8fr;
+    gap: 6px; padding: 9px 0; border-top: 1px solid var(--c-sep);
+    font-size: 12.5px; align-items: center;
+  }
+  .cmp-row:first-of-type{ border-top: 0; color: var(--c-hint); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+  .cmp-head{ }
+  .cmp-num{ text-align: right; font-variant-numeric: tabular-nums; }
+  .delta-up{ color: var(--c-ok); font-weight: 700; }
+  .delta-down{ color: var(--c-bad); font-weight: 700; }
+  .delta-flat{ color: var(--c-hint); font-weight: 700; }
+
+  /* ---------- Tabbar ---------- */
+  .tabbar{
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    display: flex;
+    background: var(--c-secondary);
+    border-top: 1px solid var(--c-sep);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .tab{
+    flex: 1; border: 0; background: none; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 2px 7px;
+    color: var(--c-hint); font-size: 10px; font-weight: 600;
+    transition: color .15s;
+  }
+  .tab svg{ width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .tab.active{ color: var(--c-accent); }
+  .tab:active{ opacity: .6; }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop{
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(0,0,0,.45);
+    display: flex; align-items: flex-end;
+    animation: fadeIn .18s ease;
+  }
+  @keyframes fadeIn{ from{ opacity: 0 } to{ opacity: 1 } }
+  .modal{
+    width: 100%; background: var(--c-bg);
+    border-radius: 20px 20px 0 0;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+    max-height: 88vh; overflow-y: auto;
+    animation: slideUp .22s cubic-bezier(.2,.8,.3,1);
+  }
+  @keyframes slideUp{ from{ transform: translateY(40px) } to{ transform: none } }
+  .modal-title{ font-size: 17px; font-weight: 700; letter-spacing: -.3px; margin-bottom: 4px; }
+
+  /* ---------- Toast ---------- */
+  #toast{
+    position: fixed; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    transform: translate(-50%, 10px);
+    background: rgba(22,24,28,.94); color: #fff;
+    padding: 10px 16px; border-radius: 12px; font-size: 13px; font-weight: 500;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+    z-index: 100; max-width: 88vw; text-align: center;
+  }
+  #toast.show{ opacity: 1; transform: translate(-50%, 0); }
+
+  .empty{
+    text-align: center; padding: 26px 16px; color: var(--c-hint); font-size: 13px; line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-txt">
+    <div class="topbar-title" id="tbTitle">Трекер продаж</div>
+    <div class="topbar-sub" id="tbSub">&nbsp;</div>
+  </div>
+  <button class="btn-ghost" id="btnPlan">План</button>
+</header>
+
+<main>
+  <section class="view active" id="view-dashboard"></section>
+  <section class="view" id="view-entry"></section>
+  <section class="view" id="view-analytics"></section>
+  <section class="view" id="view-advice"></section>
+  <section class="view" id="view-history"></section>
+</main>
+
+<nav class="tabbar" id="tabbar">
+  <button class="tab active" data-view="dashboard">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    <span>Обзор</span>
+  </button>
+  <button class="tab" data-view="entry">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+    <span>Ввод</span>
+  </button>
+  <button class="tab" data-view="analytics">
+    <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    <span>Графики</span>
+  </button>
+  <button class="tab" data-view="advice">
+    <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6V16h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z"/></svg>
+    <span>Советы</span>
+  </button>
+  <button class="tab" data-view="history">
+    <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 8v4l2.5 2"/></svg>
+    <span>История</span>
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+/* ==================================================================
+   ТРЕКЕР-АНАЛИЗАТОР ПРОДАЖ — Telegram Mini App
+   ================================================================== */
+
+/* ---------------- Telegram SDK ---------------- */
+const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+try {
+  if (TG) {
+    TG.ready();
+    TG.expand();
+    TG.setHeaderColor('secondary_bg_color');
+    TG.setBackgroundColor('bg_color');
+  }
+} catch (e) { /* noop */ }
+
+function haptic(kind) {
+  try {
+    if (!TG || !TG.HapticFeedback) return;
+    if (kind === 'success' || kind === 'error' || kind === 'warning') {
+      TG.HapticFeedback.notificationOccurred(kind);
+    } else {
+      TG.HapticFeedback.impactOccurred(kind || 'light');
+    }
+  } catch (e) {}
+}
+
+/* ---------------- Утилиты ---------------- */
+const pad2 = n => String(n).padStart(2, '0');
+const uid  = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const $    = s => document.querySelector(s);
+const $$   = s => Array.from(document.querySelectorAll(s));
+
+const toISO    = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const fromISO  = s => { const p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); };
+const daysBetween = (a, b) => Math.round((b - a) / 86400000);
+
+const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+
+const nf = (v, d) => Number(v || 0).toLocaleString('ru-RU', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+const money = v => nf(Math.round(v), 0) + ' ₽';
+const fmtPct = v => (isFinite(v) ? (Math.round(v * 10) / 10).toLocaleString('ru-RU') : '0') + '%';
+const shortMoney = v => {
+  const n = Math.round(v);
+  if (Math.abs(n) >= 1000000) return (Math.round(n / 100000) / 10).toLocaleString('ru-RU') + ' млн';
+  if (Math.abs(n) >= 10000)   return Math.round(n / 1000).toLocaleString('ru-RU') + ' тыс';
+  return nf(n, 0);
+};
+
+function plural(n, one, few, many) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  if (b === 1) return one;
+  return many;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), 2300);
+}
+
+/* ---------------- Хранилище ---------------- */
+const STORAGE_KEY = 'sales_tracker_v1';
+
+function defaultState() {
+  return {
+    records: [],
+    plans: {},
+    settings: { onboarded: false, lastDate: null }
+  };
+}
+
+let state = (() => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      const base = defaultState();
+      return {
+        records: Array.isArray(p.records) ? p.records : [],
+        plans: p.plans || {},
+        settings: Object.assign(base.settings, p.settings || {})
+      };
+    }
+  } catch (e) {}
+  return defaultState();
+})();
+
+function persist() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+
+/* ---------------- Периоды (декады) ---------------- */
+function getPeriodInfo(dateStr) {
+  const d = fromISO(dateStr);
+  const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  let s, e, idx;
+  if (day <= 10)      { s = 1;  e = 10;     idx = 1; }
+  else if (day <= 20) { s = 11; e = 20;     idx = 2; }
+  else                { s = 21; e = lastDay; idx = 3; }
+  return {
+    key: `${y}-${pad2(m + 1)}-P${idx}`,
+    start: new Date(y, m, s),
+    end:   new Date(y, m, e),
+    idx, y, m, totalDays: e - s + 1
+  };
+}
+
+function prevPeriodInfo(info) {
+  let y = info.y, m = info.m, idx = info.idx - 1;
+  if (idx < 1) {
+    m -= 1;
+    if (m < 0) { m = 11; y -= 1; }
+    idx = 3;
+  }
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const s = idx === 1 ? 1 : idx === 2 ? 11 : 21;
+  const e = idx === 1 ? 10 : idx === 2 ? 20 : lastDay;
+  return {
+    key: `${y}-${pad2(m + 1)}-P${idx}`,
+    start: new Date(y, m, s),
+    end: new Date(y, m, e),
+    idx, y, m, totalDays: e - s + 1
+  };
+}
+
+function periodLabel(info) {
+  const nowY = new Date().getFullYear();
+  const yPart = info.y !== nowY ? ' ' + info.y : '';
+  if (info.idx === 1) return `1–10 ${MONTHS_GEN[info.m]}${yPart}`;
+  if (info.idx === 2) return `11–20 ${MONTHS_GEN[info.m]}${yPart}`;
+  return `${21}–${info.totalDays + 20} ${MONTHS_GEN[info.m]}${yPart}`;
+}
+
+/* ---------------- Данные ---------------- */
+function getRecordsForPeriod(key) {
+  return state.records
+    .filter(r => getPeriodInfo(r.date).key === key)
+    .sort((a, b) => a.date < b.date ? -1 : 1);
+}
+
+function getPlan(key) {
+  const p = state.plans[key] || {};
+  return {
+    related:  Number(p.related)  || 0,
+    services: Number(p.services) || 0,
+    finance:  Number(p.finance)  || 0
+  };
+}
+
+function computeMetrics(recs) {
+  let visits = 0, sales = 0, revenue = 0, related = 0, services = 0;
+  recs.forEach(r => {
+    visits   += Number(r.visits)   || 0;
+    sales    += Number(r.sales)    || 0;
+    revenue  += Number(r.revenue)  || 0;
+    related  += Number(r.related)  || 0;
+    services += Number(r.services) || 0;
+  });
+  return {
+    visits, sales, revenue, related, services,
+    conversion: visits > 0 ? (sales / visits) * 100 : 0,
+    avgCheck:   sales  > 0 ? revenue / sales : 0,
+    days: recs.length
+  };
+}
+
+function dailySeries(info, recs) {
+  const byDate = {};
+  recs.forEach(r => { byDate[r.date] = r; });
+  const out = [];
+  for (let i = 0; i < info.totalDays; i++) {
+    const d = new Date(info.start.getFullYear(), info.start.getMonth(), info.start.getDate() + i);
+    const iso = toISO(d);
+    const r = byDate[iso];
+    out.push({
+      iso,
+      label: String(d.getDate()),
+      visits:   r ? Number(r.visits)   || 0 : 0,
+      sales:    r ? Number(r.sales)    || 0 : 0,
+      revenue:  r ? Number(r.revenue)  || 0 : 0,
+      related:  r ? Number(r.related)  || 0 : 0,
+      services: r ? Number(r.services) || 0 : 0,
+      conversion: r && r.visits > 0 ? (r.sales / r.visits) * 100 : 0,
+      avgCheck:   r && r.sales  > 0 ? r.revenue / r.sales : 0,
+      has: !!r
+    });
+  }
+  return out;
+}
+
+function getAllPeriodKeys() {
+  const keys = new Set();
+  state.records.forEach(r => keys.add(getPeriodInfo(r.date).key));
+  Object.keys(state.plans).forEach(k => keys.add(k));
+  return Array.from(keys).sort().reverse();
+}
+
+/* ---------------- Цветовые уровни ---------------- */
+function levelByProgress(fact, plan, expectedPct) {
+  if (!plan || plan <= 0) return 'neutral';
+  const pct = (fact / plan) * 100;
+  if (pct + 0.5 >= expectedPct) return 'ok';
+  if (pct + 0.5 >= expectedPct * 0.85) return 'warn';
+  return 'bad';
+}
+
+function levelConversion(v) {
+  if (v >= 25) return 'ok';
+  if (v >= 15) return 'warn';
+  return 'bad';
+}
+
+function levelAvgCheck(cur, prev) {
+  if (!prev || prev <= 0) return 'neutral';
+  if (cur >= prev * 1.02) return 'ok';
+  if (cur >= prev * 0.92) return 'warn';
+  return 'bad';
+}
+
+/* ---------------- Тема для графиков ---------------- */
+function themeVar(name, fallback) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch (e) { return fallback; }
+}
+
+function chartColors() {
+  return {
+    text:   themeVar('--tg-theme-text-color', '#16181c'),
+    hint:   themeVar('--tg-theme-hint-color', '#8b8f96'),
+    accent: themeVar('--tg-theme-button-color', '#2f7cf6'),
+    bg:     themeVar('--tg-theme-bg-color', '#ffffff'),
+    grid:   'rgba(128,128,128,0.16)',
+    ok:     '#22b573',
+    warn:   '#e9a13b',
+    bad:    '#e5484d',
+    purple: '#8b6ce0',
+    teal:   '#28b8c4'
+  };
+}
+
+function withAlpha(color, a) {
+  if (!color) return `rgba(47,124,246,${a})`;
+  if (color[0] === '#') {
+    let h = color.slice(1);
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+  if (color.indexOf('rgb') === 0) {
+    const inner = color.replace(/rgba?\(([^)]+)\)/, '$1').split(',').slice(0, 3).map(s => s.trim()).join(',');
+    return `rgba(${inner},${a})`;
+  }
+  return color;
+}
+
+/* ---------------- Графики ---------------- */
+const chartInstances = {};
+
+function drawChart(id, config) {
+  if (typeof Chart === 'undefined') return;
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (chartInstances[id]) {
+    try { chartInstances[id].destroy(); } catch (e) {}
+    delete chartInstances[id];
+  }
+  chartInstances[id] = new Chart(canvas, config);
+}
+
+function downloadChart(id, format) {
+  const chart = chartInstances[id];
+  if (!chart) { toast('Сначала постройте диаграмму'); return; }
+
+  const src = chart.canvas;
+  const tmp = document.createElement('canvas');
+  tmp.width = src.width;
+  tmp.height = src.height;
+  const ctx = tmp.getContext('2d');
+
+  ctx.fillStyle = themeVar('--tg-theme-bg-color', '#ffffff') || '#ffffff';
+  ctx.fillRect(0, 0, tmp.width, tmp.height);
+  ctx.drawImage(src, 0, 0);
+
+  const stamp = toISO(new Date());
+  const base = 'chart-' + id + '-' + stamp;
+
+  if (format === 'svg') {
+    const dataUrl = tmp.toDataURL('image/png');
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="' + tmp.width + '" height="' + tmp.height + '" ' +
+      'viewBox="0 0 ' + tmp.width + ' ' + tmp.height + '">' +
+      '<image width="' + tmp.width + '" height="' + tmp.height + '" href="' + dataUrl + '"/></svg>';
+    downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), base + '.svg');
+  } else if (format === 'jpeg') {
+    tmp.toBlob(b => downloadBlob(b, base + '.jpg'), 'image/jpeg', 0.92);
+  } else {
+    tmp.toBlob(b => downloadBlob(b, base + '.png'), 'image/png');
+  }
+  haptic('light');
+  toast('Файл сохранён: ' + base + '.' + (format === 'jpeg' ? 'jpg' : format));
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
+function downloadButtons(chartId) {
+  return `
+    <div class="dl-row">
+      <button class="dl-btn" data-dl="${chartId}" data-fmt="png">PNG</button>
+      <button class="dl-btn" data-dl="${chartId}" data-fmt="jpeg">JPEG</button>
+      <button class="dl-btn" data-dl="${chartId}" data-fmt="svg">SVG</button>
+    </div>`;
+}
+
+/* ==================================================================
+   DASHBOARD
+   ================================================================== */
+function renderDashboard() {
+  const todayStr = toISO(new Date());
+  const info = getPeriodInfo(todayStr);
+  const recs = getRecordsForPeriod(info.key);
+  const m = computeMetrics(recs);
+  const plan = getPlan(info.key);
+
+  const todayD = fromISO(todayStr);
+  const daysPassed = Math.min(info.totalDays, Math.max(1, daysBetween(info.start, todayD) + 1));
+  const daysLeftIncl = Math.max(1, info.totalDays - daysPassed + 1);
+  const expectedPct = (daysPassed / info.totalDays) * 100;
+
+  const prevInfo = prevPeriodInfo(info);
+  const prevM = computeMetrics(getRecordsForPeriod(prevInfo.key));
+
+  const finPct = plan.finance  > 0 ? (m.revenue  / plan.finance)  * 100 : 0;
+  const relPct = plan.related  > 0 ? (m.related  / plan.related)  * 100 : 0;
+  const srvPct = plan.services > 0 ? (m.services / plan.services) * 100 : 0;
+
+  const finLvl = levelByProgress(m.revenue,  plan.finance,  expectedPct);
+  const relLvl = levelByProgress(m.related,  plan.related,  expectedPct);
+  const srvLvl = levelByProgress(m.services, plan.services, expectedPct);
+
+  const convLvl = recs.length >= 2 ? levelConversion(m.conversion) : 'neutral';
+  const checkLvl = levelAvgCheck(m.avgCheck, prevM.avgCheck);
+
+  const needPerDay = plan.finance > 0
+    ? Math.max(0, plan.finance - m.revenue) / daysLeftIncl
+    : 0;
+  const needDeals = (m.avgCheck > 0 && plan.finance > 0)
+    ? Math.ceil(Math.max(0, plan.finance - m.revenue) / m.avgCheck)
+    : 0;
+
+  const daysLeftText = daysLeftIncl <= 1
+    ? 'последний день декады'
+    : `осталось ${daysLeftIncl} ${plural(daysLeftIncl, 'день', 'дня', 'дней')}`;
+
+  const html = `
+    ${recs.length === 0 ? `
+      <div class="hint-box">
+        <div>
+          <b>Начните с плана.</b> Нажмите «План» в шапке и задайте цели на декаду.
+          Затем каждый день вносите данные на вкладке «Ввод».
+        </div>
+      </div>` : ''}
+
+    <div class="card hero">
+      <div class="hero-top">
+        <div>
+          <div class="hero-label">Финансовый план декады</div>
+          <div class="hero-value">
+            ${money(m.revenue)}
+            <span class="hero-target">/ ${plan.finance > 0 ? money(plan.finance) : 'не задан'}</span>
+          </div>
+        </div>
+        <div class="pill ${finLvl === 'neutral' ? '' : finLvl}">
+          ${plan.finance > 0 ? fmtPct(finPct) : '—'}
+        </div>
+      </div>
+      ${progressBar(plan.finance > 0 ? finPct : 0, finLvl)}
+      <div class="hero-foot">
+        <span>${plan.finance > 0
+          ? (m.revenue >= plan.finance
+              ? 'План выполнен'
+              : 'Осталось ' + money(plan.finance - m.revenue))
+          : 'Задайте финансовый план'}</span>
+        <span>${daysLeftText}</span>
+      </div>
+    </div>
+
+    ${plan.finance > 0 && m.revenue < plan.finance && needPerDay > 0 ? `
+      <div class="card">
+        <div class="card-title">Темп для выполнения плана</div>
+        <div class="card-sub">
+          Нужно <b style="color:var(--c-text)">${money(needPerDay)}</b> в день
+          в оставшиеся ${daysLeftIncl} ${plural(daysLeftIncl, 'день', 'дня', 'дней')}
+          ${m.avgCheck > 0 ? `— это примерно ${needDeals} ${plural(needDeals, 'продажа', 'продажи', 'продаж')} в день` : ''}.
+        </div>
+      </div>` : ''}
+
+    <div class="section-title">Категории</div>
+    <div class="grid-2">
+      <div class="card cat-card">
+        <div class="cat-head">
+          <span class="cat-name">Сопутствующие</span>
+          <span class="cat-pct ${relLvl === 'neutral' ? '' : relLvl}">${plan.related > 0 ? fmtPct(relPct) : '—'}</span>
+        </div>
+        <div class="cat-vals">${money(m.related)} из ${plan.related > 0 ? money(plan.related) : '—'}</div>
+        ${progressBar(plan.related > 0 ? relPct : 0, relLvl)}
+      </div>
+      <div class="card cat-card">
+        <div class="cat-head">
+          <span class="cat-name">Услуги</span>
+          <span class="cat-pct ${srvLvl === 'neutral' ? '' : srvLvl}">${plan.services > 0 ? fmtPct(srvPct) : '—'}</span>
+        </div>
+        <div class="cat-vals">${money(m.services)} из ${plan.services > 0 ? money(plan.services) : '—'}</div>
+        ${progressBar(plan.services > 0 ? srvPct : 0, srvLvl)}
+      </div>
+    </div>
+
+    <div class="section-title">Ключевые показатели</div>
+    <div class="grid-2">
+      <div class="card metric">
+        <div class="metric-label">Выходы в зал</div>
+        <div class="metric-value">${nf(m.visits)}</div>
+        <div class="metric-sub">за декаду</div>
+      </div>
+      <div class="card metric">
+        <div class="metric-label">Продажи</div>
+        <div class="metric-value">${nf(m.sales)}</div>
+        <div class="metric-sub">${prevM.sales > 0 ? 'было ' + nf(prevM.sales) + ' в прошлой' : 'шт. за декаду'}</div>
+      </div>
+      <div class="card metric">
+        <div class="metric-label">Конверсия</div>
+        <div class="metric-value ${convLvl === 'neutral' ? '' : convLvl}">${fmtPct(m.conversion)}</div>
+        <div class="metric-sub">продажи / выходы</div>
+      </div>
+      <div class="card metric">
+        <div class="metric-label">Средний чек</div>
+        <div class="metric-value ${checkLvl === 'neutral' ? '' : checkLvl}">${m.avgCheck > 0 ? money(m.avgCheck) : '—'}</div>
+        <div class="metric-sub">${prevM.avgCheck > 0 ? 'было ' + money(prevM.avgCheck) : 'выручка / продажи'}</div>
+      </div>
+      <div class="card metric">
+        <div class="metric-label">Выручка (факт)</div>
+        <div class="metric-value">${shortMoney(m.revenue)}</div>
+        <div class="metric-sub">₽ за декаду</div>
+      </div>
+      <div class="card metric">
+        <div class="metric-label">Записей</div>
+        <div class="metric-value">${recs.length}<span style="font-size:14px;color:var(--c-hint)">/${info.totalDays}</span></div>
+        <div class="metric-sub">дней заполнено</div>
+      </div>
+    </div>
+  `;
+
+  $('#view-dashboard').innerHTML = html;
+}
+
+function progressBar(pct, lvl) {
+  const w = Math.max(0, Math.min(100, pct));
+  const cls = (lvl && lvl !== 'neutral') ? lvl : '';
+  return `<div class="bar"><div class="bar-fill ${cls}" style="width:${w}%"></div></div>`;
+}
+
+/* ==================================================================
+   ENTRY (ввод данных)
+   ================================================================== */
+const STAGES = [
+  'Выход в зал к покупателям',
+  'Консультирование',
+  'Презентация товара/услуги',
+  'Работа по стандартам (скрипты)'
+];
+
+function renderEntry(preserve) {
+  const todayStr = toISO(new Date());
+  const dateVal = preserve && preserve.date ? preserve.date : todayStr;
+  const existing = state.records.find(r => r.date === dateVal) || null;
+
+  const info = getPeriodInfo(dateVal);
+  const recs = getRecordsForPeriod(info.key);
+
+  const stageOptions = STAGES
+    .map(s => `<option value="${esc(s)}"${existing && existing.stage === s ? ' selected' : ''}>${esc(s)}</option>`)
+    .join('');
+
+  const listHtml = recs.length
+    ? recs.slice().reverse().map(r => {
+        const d = fromISO(r.date);
+        return `
+          <div class="rec">
+            <div class="rec-main">
+              <div class="rec-date">${d.getDate()} ${MONTHS_GEN[d.getMonth()]}</div>
+              <div class="rec-meta">
+                ${nf(r.visits)} ${plural(r.visits, 'выход', 'выхода', 'выходов')} ·
+                ${nf(r.sales)} ${plural(r.sales, 'продажа', 'продажи', 'продаж')} ·
+                ${money(r.revenue)}
+              </div>
+            </div>
+            <div class="rec-actions">
+              <button class="mini-btn" data-edit="${esc(r.date)}">Изм.</button>
+              <button class="mini-btn danger" data-del="${esc(r.id)}">Удал.</button>
+            </div>
+          </div>`;
+      }).join('')
+    : `<div class="empty">Пока нет записей за эту декаду.<br>Внесите первый день — это займёт 20 секунд.</div>`;
+
+  $('#view-entry').innerHTML = `
+    <div class="card">
+      <div class="row-between">
+        <div>
+          <div class="card-title">${existing ? 'Редактирование записи' : 'Новая запись'}</div>
+          <div class="card-sub">Декада: ${periodLabel(info)}</div>
+        </div>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Дата</span>
+        <input type="date" id="f-date" value="${dateVal}">
+      </label>
+
+      <div class="field-row">
+        <label class="field">
+          <span class="field-label">Выходы в зал</span>
+          <input type="number" id="f-visits" inputmode="numeric" min="0" step="1"
+                 placeholder="например, 12" value="${existing ? existing.visits : ''}">
+        </label>
+        <label class="field">
+          <span class="field-label">Продажи, шт.</span>
+          <input type="number" id="f-sales" inputmode="numeric" min="0" step="1"
+                 placeholder="например, 3" value="${existing ? existing.sales : ''}">
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Выручка за день, ₽</span>
+        <input type="number" id="f-revenue" inputmode="numeric" min="0" step="1"
+               placeholder="например, 24000" value="${existing ? existing.revenue : ''}">
+      </label>
+
+      <div class="field-row">
+        <label class="field">
+          <span class="field-label">Из них сопутствующие, ₽</span>
+          <input type="number" id="f-related" inputmode="numeric" min="0" step="1"
+                 placeholder="например, 3500" value="${existing ? existing.related : ''}">
+        </label>
+        <label class="field">
+          <span class="field-label">Из них услуги, ₽</span>
+          <input type="number" id="f-services" inputmode="numeric" min="0" step="1"
+                 placeholder="например, 2000" value="${existing ? existing.services : ''}">
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Основной этап работы за день</span>
+        <select id="f-stage">
+          <option value="">Не указан</option>
+          ${stageOptions}
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Заметка (необязательно)</span>
+        <input type="text" id="f-note" maxlength="140"
+               placeholder="что сработало / что мешало" value="${existing ? esc(existing.note || '') : ''}">
+      </label>
+
+      <div class="hint-box" style="margin-top:12px" id="f-preview">
+        Заполните выходы и продажи — покажем конверсию и средний чек.
+      </div>
+
+      <button class="btn" id="f-save">${existing ? 'Обновить запись' : 'Сохранить запись'}</button>
+    </div>
+
+    <div class="card">
+      <div class="row-between">
+        <div class="card-title">Записи декады</div>
+        <span class="card-sub">${recs.length} из ${info.totalDays}</span>
+      </div>
+      <div style="margin-top:6px">${listHtml}</div>
+    </div>
+  `;
+
+  bindEntryEvents();
+  updatePreview();
+}
+
+function bindEntryEvents() {
+  const dateInput = $('#f-date');
+  if (dateInput) {
+    dateInput.addEventListener('change', () => {
+      const d = dateInput.value || toISO(new Date());
+      renderEntry({ date: d });
+    });
+  }
+
+  ['#f-visits', '#f-sales', '#f-revenue', '#f-related', '#f-services'].forEach(sel => {
+    const el = $(sel);
+    if (el) el.addEventListener('input', updatePreview);
+  });
+
+  const saveBtn = $('#f-save');
+  if (saveBtn) saveBtn.addEventListener('click', saveEntry);
+
+  $$('#view-entry [data-edit]').forEach(b => {
+    b.addEventListener('click', () => {
+      renderEntry({ date: b.getAttribute('data-edit') });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+
+  $$('#view-entry [data-del]').forEach(b => {
+    b.addEventListener('click', () => {
+      const id = b.getAttribute('data-del');
+      if (!confirm('Удалить эту запись?')) return;
+      state.records = state.records.filter(r => r.id !== id);
+      persist();
+      haptic('warning');
+      toast('Запись удалена');
+      renderEntry({ date: $('#f-date') ? $('#f-date').value : undefined });
+      renderDashboard();
+    });
+  });
+}
+
+function numVal(sel) {
+  const el = $(sel);
+  if (!el) return 0;
+  const v = parseFloat(String(el.value).replace(/\s/g, '').replace(',', '.'));
+  return isFinite(v) && v > 0 ? v : 0;
+}
+
+function updatePreview() {
+  const visits = numVal('#f-visits');
+  const sales = numVal('#f-sales');
+  const revenue = numVal('#f-revenue');
+  const box = $('#f-preview');
+  if (!box) return;
+
+  const conv = visits > 0 ? (sales / visits) * 100 : 0;
+  const check = sales > 0 ? revenue / sales : 0;
+
+  if (!visits && !sales && !revenue) {
+    box.innerHTML = 'Заполните выходы и продажи — покажем конверсию и средний чек.';
+    return;
+  }
+  box.innerHTML =
+    `Конверсия: <b style="color:var(--c-text)">${fmtPct(conv)}</b> · ` +
+    `Средний чек: <b style="color:var(--c-text)">${check > 0 ? money(check) : '—'}</b>`;
+}
+
+function saveEntry() {
+  const dateEl = $('#f-date');
+  const date = dateEl ? dateEl.value : '';
+  if (!date) { toast('Укажите дату'); return; }
+
+  const rec = {
+    date,
+    visits:   numVal('#f-visits'),
+    sales:    numVal('#f-sales'),
+    revenue:  numVal('#f-revenue'),
+    related:  numVal('#f-related'),
+    services: numVal('#f-services'),
+    stage:    $('#f-stage') ? $('#f-stage').value : '',
+    note:     $('#f-note') ? $('#f-note').value.trim() : ''
+  };
+
+  if (rec.visits === 0 && rec.sales === 0 && rec.revenue === 0) {
+    toast('Заполните хотя бы один показатель');
+    return;
+  }
+  if (rec.sales > rec.visits && rec.visits > 0) {
+    toast('Продаж не может быть больше выходов');
+    return;
+  }
+  if (rec.related + rec.services > rec.revenue + 0.5) {
+    toast('Сопутствующие + услуги больше выручки');
+    return;
+  }
+
+  const existing = state.records.find(r => r.date === date);
+  if (existing) {
+    Object.assign(existing, rec);
+  } else {
+    state.records.push(Object.assign({ id: uid() }, rec));
+  }
+  persist();
+  haptic('success');
+  toast(existing ? 'Запись обновлена' : 'Запись сохранена');
+  renderEntry({ date });
+  renderDashboard();
+}
+
+/* ==================================================================
+   ANALYTICS
+   ================================================================== */
+function renderAnalytics() {
+  const todayStr = toISO(new Date());
+  const info = getPeriodInfo(todayStr);
+  const recs = getRecordsForPeriod(info.key);
+  const m = computeMetrics(recs);
+  const plan = getPlan(info.key);
+  const series = dailySeries(info, recs);
+
+  if (recs.length === 0) {
+    $('#view-analytics').innerHTML = `
+      <div class="card">
+        <div class="empty">
+          Нет данных за текущую декаду.<br>
+          Внесите записи на вкладке «Ввод», и здесь появятся диаграммы.
+        </div>
+      </div>`;
+    return;
+  }
+
+  $('#view-analytics').innerHTML = `
+    <div class="section-title">План и факт</div>
+    <div class="card chart-card">
+      <div class="card-title">План vs Факт по категориям</div>
+      <div class="card-sub">${periodLabel(info)}</div>
+      <div class="chart-box"><canvas id="ch-planfact"></canvas></div>
+      ${downloadButtons('ch-planfact')}
+    </div>
+
+    <div class="section-title">Динамика по дням</div>
+    <div class="card chart-card">
+      <div class="card-title">Выходы, продажи и выручка</div>
+      <div class="card-sub">столбцы — количество, линия — выручка</div>
+      <div class="chart-box"><canvas id="ch-daily"></canvas></div>
+      ${downloadButtons('ch-daily')}
+    </div>
+
+    <div class="section-title">Структура</div>
+    <div class="card chart-card">
+      <div class="card-title">Структура продаж</div>
+      <div class="card-sub">сопутствующие товары, услуги и основной товар</div>
+      <div class="chart-box"><canvas id="ch-structure"></canvas></div>
+      ${downloadButtons('ch-structure')}
+    </div>
+
+    <div class="section-title">Конверсия</div>
+    <div class="card chart-card">
+      <div class="card-title">Конверсия по дням</div>
+      <div class="card-sub">продажи / выходы в зал, %</div>
+      <div class="chart-box"><canvas id="ch-conv"></canvas></div>
+      ${downloadButtons('ch-conv')}
+    </div>
+
+    <div class="section-title">Свой график</div>
+    <div class="card">
+      <div class="card-title">Конструктор диаграммы</div>
+      <div class="card-sub">выберите показатель и тип — затем скачайте</div>
+      <div class="field-row">
+        <label class="field">
+          <span class="field-label">Показатель</span>
+          <select id="cb-metric">
+            <option value="revenue">Выручка</option>
+            <option value="sales">Продажи</option>
+            <option value="visits">Выходы в зал</option>
+            <option value="conversion">Конверсия</option>
+            <option value="avgCheck">Средний чек</option>
+            <option value="related">Сопутствующие</option>
+            <option value="services">Услуги</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">Тип</span>
+          <select id="cb-type">
+            <option value="bar">Столбчатая</option>
+            <option value="line">Линейная</option>
+            <option value="pie">Круговая</option>
+          </select>
+        </label>
+      </div>
+      <button class="btn" id="cb-build">Построить</button>
+      <div class="chart-box" id="cb-box" style="display:none"><canvas id="ch-custom"></canvas></div>
+      <div id="cb-dl" style="display:none">${downloadButtons('ch-custom')}</div>
+    </div>
+  `;
+
+  buildAnalyticsCharts(info, recs, m, plan, series);
+
+  const buildBtn = $('#cb-build');
+  if (buildBtn) {
+    buildBtn.addEventListener('click', () => {
+      $('#cb-box').style.display = 'block';
+      $('#cb-dl').style.display = 'block';
+      buildCustomChart(series);
+      haptic('light');
+    });
+  }
+
+  $$('#view-analytics [data-dl]').forEach(b => {
+    b.addEventListener('click', () => downloadChart(b.getAttribute('data-dl'), b.getAttribute('data-fmt')));
+  });
+}
+
+function buildAnalyticsCharts(info, recs, m, plan, series) {
+  const C = chartColors();
+
+  const baseOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 350 },
+    plugins: {
+      legend: {
+        labels: { color: C.text, boxWidth: 10, boxHeight: 10, font: { size: 11 }, padding: 10 }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(20,22,26,.92)',
+        padding: 9,
+        cornerRadius: 8,
+        titleFont: { size: 12 },
+        bodyFont: { size: 12 }
+      }
+    }
+  };
+
+  /* --- 1. План vs Факт --- */
+  drawChart('ch-planfact', {
+    type: 'bar',
+    data: {
+      labels: ['Сопутствующие', 'Услуги', 'Финансы'],
+      datasets: [
+        {
+          label: 'План',
+          data: [plan.related, plan.services, plan.finance],
+          backgroundColor: withAlpha(C.hint, .32),
+          borderRadius: 5,
+          borderSkipped: false
+        },
+        {
+          label: 'Факт',
+          data: [m.related, m.services, m.revenue],
+          backgroundColor: withAlpha(C.accent, .85),
+          borderRadius: 5,
+          borderSkipped: false
+        }
+      ]
+    },
+    options: Object.assign({}, baseOpts, {
+      scales: {
+        x: { ticks: { color: C.hint, font: { size: 10 } }, grid: { display: false } },
+        y: {
+          beginAtZero: true,
+          ticks: { color: C.hint, font: { size: 10 }, callback: v => shortMoney(v) },
+          grid: { color: C.grid }
+        }
+      }
+    })
+  });
+
+  /* --- 2. Динамика --- */
+  drawChart('ch-daily', {
+    type: 'bar',
+    data: {
+      labels: series.map(d => d.label),
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Выходы',
+          data: series.map(d => d.visits),
+          backgroundColor: withAlpha(C.accent, .55),
+          borderRadius: 4,
+          borderSkipped: false,
+          yAxisID: 'y'
+        },
+        {
+          type: 'bar',
+          label: 'Продажи',
+          data: series.map(d => d.sales),
+          backgroundColor: withAlpha(C.ok, .8),
+          borderRadius: 4,
+          borderSkipped: false,
+          yAxisID: 'y'
+        },
+        {
+          type: 'line',
+          label: 'Выручка',
+          data: series.map(d => d.revenue),
+          borderColor: C.warn,
+          backgroundColor: withAlpha(C.warn, .14),
+          borderWidth: 2,
+          tension: .35,
+          pointRadius: 2.5,
+          pointBackgroundColor: C.warn,
+          fill: false,
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options: Object.assign({}, baseOpts, {
+      scales: {
+        x: { ticks: { color: C.hint, font: { size: 10 } }, grid: { display: false } },
+        y: {
+          beginAtZero: true,
+          position: 'left',
+          ticks: { color: C.hint, font: { size: 10 }, precision: 0 },
+          grid: { color: C.grid }
+        },
+        y1: {
+          beginAtZero: true,
+          position: 'right',
+          ticks: { color: C.hint, font: { size: 10 }, callback: v => shortMoney(v) },
+          grid: { display: false }
+        }
+      }
+    })
+  });
+
+  /* --- 3. Структура --- */
+  const other = Math.max(0, m.revenue - m.related - m.services);
+  const pieLabels = [], pieData = [], pieColors = [];
+  if (m.related  > 0) { pieLabels.push('Сопутствующие'); pieData.push(m.related);  pieColors.push(C.ok); }
+  if (m.services > 0) { pieLabels.push('Услуги');        pieData.push(m.services); pieColors.push(C.accent); }
+  if (other      > 0) { pieLabels.push('Основной товар'); pieData.push(other);     pieColors.push(withAlpha(C.hint, .45)); }
+
+  if (pieData.length === 0) {
+    pieLabels.push('Нет данных'); pieData.push(1); pieColors.push(withAlpha(C.hint, .25));
+  }
+
+  drawChart('ch-structure', {
+    type: 'doughnut',
+    data: {
+      labels: pieLabels,
+      datasets: [{
+        data: pieData,
+        backgroundColor: pieColors,
+        borderWidth: 0,
+        hoverOffset: 5
+      }]
+    },
+    options: Object.assign({}, baseOpts, {
+      cutout: '58%',
+      plugins: Object.assign({}, baseOpts.plugins, {
+        tooltip: Object.assign({}, baseOpts.plugins.tooltip, {
+          callbacks: {
+            label: ctx => {
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0) || 1;
+              const p = (ctx.parsed / total) * 100;
+              return ` ${ctx.label}: ${money(ctx.parsed)} (${fmtPct(p)})`;
+            }
+          }
+        })
+      })
+    })
+  });
+
+  /* --- 4. Конверсия по дням --- */
+  drawChart('ch-conv', {
+    type: 'line',
+    data: {
+      labels: series.map(d => d.label),
+      datasets: [{
+        label: 'Конверсия, %',
+        data: series.map(d => d.has ? Math.round(d.conversion * 10) / 10 : null),
+        borderColor: C.accent,
+        backgroundColor: withAlpha(C.accent, .14),
+        borderWidth: 2,
+        tension: .35,
+        pointRadius: 3,
+        pointBackgroundColor: C.accent,
+        spanGaps: true,
+        fill: true
+      }]
+    },
+    options: Object.assign({}, baseOpts, {
+      scales: {
+        x: { ticks: { color: C.hint, font: { size: 10 } }, grid: { display: false } },
+        y: {
+          beginAtZero: true,
+          ticks: { color: C.hint, font: { size: 10 }, callback: v => v + '%' },
+          grid: { color: C.grid }
+        }
+      }
+    })
+  });
+}
+
+function buildCustomChart(series) {
+  const C = chartColors();
+  const metric = $('#cb-metric').value;
+  const type = $('#cb-type').value;
+  const labels = series.map(d => d.label);
+  const data = series.map(d => d[metric]);
+
+  const baseOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: C.text, boxWidth: 10, font: { size: 11 } } },
+      tooltip: { backgroundColor: 'rgba(20,22,26,.92)', padding: 9, cornerRadius: 8 }
+    }
+  };
+
+  const names = {
+    revenue: 'Выручка, ₽', sales: 'Продажи, шт.', visits: 'Выходы, шт.',
+    conversion: 'Конверсия, %', avgCheck: 'Средний чек, ₽',
+    related: 'Сопутствующие, ₽', services: 'Услуги, ₽'
+  };
+
+  if (type === 'pie') {
+    drawChart('ch-custom', {
+      type: 'doughnut',
+      data: {
+        labels: series.filter(d => d[metric] > 0).map(d => d.label + '-е число'),
+        datasets: [{
+          data: series.filter(d => d[metric] > 0).map(d => d[metric]),
+          backgroundColor: [C.accent, C.ok, C.warn, C.purple, C.teal, C.bad, withAlpha(C.hint, .5)],
+          borderWidth: 0
+        }]
+      },
+      options: Object.assign({}, baseOpts, { cutout: '52%' })
+    });
+  } else {
+    const isLine = type === 'line';
+    drawChart('ch-custom', {
+      type: isLine ? 'line' : 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: names[metric] || metric,
+          data,
+          borderColor: C.accent,
+          backgroundColor: isLine ? withAlpha(C.accent, .15) : withAlpha(C.accent, .8),
+          borderWidth: isLine ? 2 : 0,
+          borderRadius: isLine ? 0 : 4,
+          borderSkipped: false,
+          tension: .35,
+          pointRadius: isLine ? 3 : 0,
+          pointBackgroundColor: C.accent,
+          fill: isLine
+        }]
+      },
+      options: Object.assign({}, baseOpts, {
+        scales: {
+          x: { ticks: { color: C.hint, font: { size: 10 } }, grid: { display: false } },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: C.hint, font: { size: 10 },
+              callback: v => (metric === 'revenue' || metric === 'avgCheck' || metric === 'related' || metric === 'services')
+                ? shortMoney(v) : v
+            },
+            grid: { color: C.grid }
+          }
+        }
+      })
+    });
+  }
+}
+
+/* ==================================================================
+   ADVICE (умные рекомендации)
+   ================================================================== */
+function renderAdvice() {
+  const todayStr = toISO(new Date());
+  const info = getPeriodInfo(todayStr);
+  const recs = getRecordsForPeriod(info.key);
+  const m = computeMetrics(recs);
+  const plan = getPlan(info.key);
+
+  const todayD = fromISO(todayStr);
+  const daysPassed = Math.min(info.totalDays, Math.max(1, daysBetween(info.start, todayD) + 1));
+  const daysLeftIncl = Math.max(1, info.totalDays - daysPassed + 1);
+  const expectedPct = (daysPassed / info.totalDays) * 100;
+
+  const prevInfo = prevPeriodInfo(info);
+  const prevM = computeMetrics(getRecordsForPeriod(prevInfo.key));
+
+  const tips = [];
+
+  if (recs.length < 2) {
+    tips.push({
+      type: 'neutral',
+      title: 'Мало данных для анализа',
+      body: `<p>Внесите записи минимум за 2–3 дня — рекомендации станут точнее.</p>
+             <p>Пока ориентир: заполняйте <b>выходы в зал</b> и <b>продажи</b> каждый день, это база для расчёта конверсии.</p>`
+    });
+  }
+
+  /* --- Конверсия --- */
+  if (recs.length >= 2 && m.visits >= 5) {
+    if (m.conversion < 12) {
+      tips.push({
+        type: 'bad',
+        title: `Низкая конверсия — ${fmtPct(m.conversion)}`,
+        body: `<p>Вы теряете покупателя до покупки. Основные точки роста:</p>
+          <ul>
+            <li>Перед показом товара задайте <b>минимум 3 открытых вопроса</b> — так вы поймёте задачу клиента, а не угадываете.</li>
+            <li>Презентация по формуле <b>«свойство → выгода → доказательство»</b>: не «керамика», а «керамика не впитывает запахи — легко мыть».</li>
+            <li>Отработайте возражение «дорого»: <b>согласие → аргумент → альтернатива</b>. Не спорьте с ценой.</li>
+            <li>Закрывайте сделку вопросом: «Оформляем на кассе?» вместо «Будете брать?».</li>
+          </ul>
+          <p>На этой декаде хватит <b>+${Math.max(1, Math.ceil(m.visits * 0.03))} продаж</b>, чтобы конверсия выросла на 3 п.п.</p>`
+      });
+    } else if (m.conversion < 22) {
+      tips.push({
+        type: 'warn',
+        title: `Конверсия в норме — ${fmtPct(m.conversion)}`,
+        body: `<p>Есть куда расти. Проверьте, на каком этапе чаще всего теряете контакт:</p>
+          <ul>
+            <li>Если клиент уходит после консультирования — мало вопросов и слабая диагностика потребности.</li>
+            <li>Если после презентации — не хватает аргументации и работы с сомнениями.</li>
+            <li>Если на кассе — не доводите до закрытия: используйте пробный вопрос и предложение альтернативы.</li>
+          </ul>
+          <p>Цель на декаду: <b>${Math.round(m.visits * 0.25)} продаж</b> при 25% конверсии.</p>`
+      });
+    } else {
+      tips.push({
+        type: 'ok',
+        title: `Сильная конверсия — ${fmtPct(m.conversion)}`,
+        body: `<p>Отличный результат. Что делать, чтобы удержать:</p>
+          <ul>
+            <li>Запишите <b>свои рабочие формулировки</b>, которые привели к продаже, и повторяйте их осознанно.</li>
+            <li>Не снижайте число выходов в зал — конверсия держится на объёме контактов.</li>
+            <li>Проверьте, не растёт ли конверсия за счёт «лёгких» клиентов — фиксируйте этап в записях.</li>
+          </ul>`
+      });
+    }
+  }
+
+  /* --- Средний чек --- */
+  if (m.sales >= 3) {
+    const relatedShare = m.revenue > 0 ? (m.related / m.revenue) * 100 : 0;
+
+    if (prevM.avgCheck > 0 && m.avgCheck < prevM.avgCheck * 0.9) {
+      tips.push({
+        type: 'warn',
+        title: `Средний чек упал — ${money(m.avgCheck)}`,
+        body: `<p>В прошлой декаде было <b>${money(prevM.avgCheck)}</b>, сейчас <b>${money(m.avgCheck)}</b> — минус ${fmtPct((1 - m.avgCheck / prevM.avgCheck) * 100)}.</p>
+          <ul>
+            <li>Добавьте <b>один обязательный вопрос-допродажу</b> в конце каждой консультации.</li>
+            <li>Используйте связку: «К этому обычно берут…» и «Вам упаковать отдельно?» вместо «Что-то ещё?».</li>
+            <li>Составьте <b>ТОП-3 сопутствующих товара</b>, подходящих к 80% ваших продаж, и предлагайте их всегда.</li>
+          </ul>`
+      });
+    } else if (relatedShare < 15 && m.revenue > 0) {
+      tips.push({
+        type: 'warn',
+        title: `Сопутствующие — всего ${fmtPct(relatedShare)} выручки`,
+        body: `<p>Каждая продажа без допродажи — упущенная выручка. Сопутствующие товары обычно дают +15–25% к чеку без дополнительных выходов в зал.</p>
+          <ul>
+            <li>Определите <b>3 позиции</b>, которые подходят почти к любому основному товару.</li>
+            <li>Предлагайте <b>до</b> озвучивания итоговой суммы, а не после.</li>
+            <li>Ставьте цель: минимум <b>1 сопутствующий товар на каждую 2-ю продажу</b>.</li>
+          </ul>`
+      });
+    } else {
+      tips.push({
+        type: 'ok',
+        title: `Средний чек — ${money(m.avgCheck)}`,
+        body: `<p>Допродажи работают (${fmtPct(relatedShare)} выручки — сопутствующие).</p>
+          <ul>
+            <li>Попробуйте <b>комплексные предложения</b>: «товар + услуга» со скидкой на набор.</li>
+            <li>Обратите внимание на услуги: сейчас это ${fmtPct(m.revenue > 0 ? (m.services / m.revenue) * 100 : 0)} выручки.</li>
+          </ul>`
+      });
+    }
+  }
+
+  /* --- План --- */
+  if (plan.finance > 0) {
+    const finPct = (m.revenue / plan.finance) * 100;
+    const gap = plan.finance - m.revenue;
+
+    if (finPct + 0.5 < expectedPct - 5) {
+      const needPerDay = Math.max(0, gap) / daysLeftIncl;
+      const needDeals = m.avgCheck > 0 ? Math.ceil(Math.max(0, gap) / m.avgCheck) : 0;
+      const needDealsPerDay = Math.ceil(needDeals / daysLeftIncl);
+      tips.push({
+        type: 'bad',
+        title: `Отставание от плана — ${fmtPct(finPct)} при ожидаемых ${fmtPct(expectedPct)}`,
+        body: `<p>До цели не хватает <b>${money(gap)}</b>. На оставшиеся ${daysLeftIncl} ${plural(daysLeftIncl, 'день', 'дня', 'дней')} нужно:</p>
+          <ul>
+            <li><b>${money(needPerDay)} в день</b> — это ${needDealsPerDay} ${plural(needDealsPerDay, 'продажа', 'продажи', 'продаж')} в день при текущем среднем чеке ${money(m.avgCheck)}.</li>
+            <li>Увеличьте выходы в зал: при конверсии ${fmtPct(m.conversion)} для ${needDealsPerDay} продаж в день нужно ≈ ${m.conversion > 0 ? Math.ceil(needDealsPerDay / (m.conversion / 100)) : '—'} контактов.</li>
+            <li>Параллельно поднимайте чек допродажами — это снизит нужное число продаж.</li>
+          </ul>
+          <p><b>План действий на завтра:</b> первые 15 минут — активный выход в зал, к каждой продаже — минимум 1 допродажа, вечером — фиксация результата.</p>`
+      });
+    } else if (finPct + 0.5 >= expectedPct + 5) {
+      tips.push({
+        type: 'ok',
+        title: `Идёте с опережением — ${fmtPct(finPct)}`,
+        body: `<p>Вы впереди графика на ${fmtPct(finPct - expectedPct)}. Точки роста, чтобы закрепить результат:</p>
+          <ul>
+            <li>Проверьте <b>услуги</b>${plan.services > 0 ? `: выполнено ${fmtPct((m.services / plan.services) * 100)}` : ''} — часто это самая маржинальная категория.</li>
+            <li>Поднимите цель по среднему чеку на ${fmtPct(5)} — это даст запас на следующий период.</li>
+            <li>Разберите 2–3 лучшие сделки: какие формулировки сработали? Зафиксируйте их как скрипт.</li>
+          </ul>`
+      });
+    } else {
+      tips.push({
+        type: 'neutral',
+        title: `Идёте в графике — ${fmtPct(finPct)}`,
+        body: `<p>Темп соответствует плану. Держите ритм:</p>
+          <ul>
+            <li>Нужно <b>${money(Math.max(0, gap) / daysLeftIncl)} в день</b> до конца декады.</li>
+            <li>Не допускайте «провальных» дней — один день без продаж = двойная нагрузка на остальные.</li>
+          </ul>`
+      });
+    }
+  } else {
+    tips.push({
+      type: 'neutral',
+      title: 'План на декаду не задан',
+      body: `<p>Без плана невозможно оценить результат. Нажмите <b>«План»</b> в шапке и задайте:</p>
+        <ul>
+          <li>финансовый план (общая выручка);</li>
+          <li>план по сопутствующим товарам;</li>
+          <li>план по услугам.</li>
+        </ul>`
+    });
+  }
+
+  /* --- Этапы продаж --- */
+  const stageCount = {};
+  recs.forEach(r => { if (r.stage) stageCount[r.stage] = (stageCount[r.stage] || 0) + 1; });
+  const stageEntries = Object.entries(stageCount).sort((a, b) => b[1] - a[1]);
+
+  if (stageEntries.length > 0) {
+    const topStage = stageEntries[0][0];
+    if (topStage === 'Выход в зал к покупателям' && m.conversion < 20) {
+      tips.push({
+        type: 'warn',
+        title: 'Перекос в сторону выходов в зал',
+        body: `<p>Больше всего времени вы отмечаете этап «Выход в зал», но конверсия ${fmtPct(m.conversion)}. Значит, контакт есть, а результата нет.</p>
+          <ul>
+            <li>Перенесите фокус на <b>консультирование</b>: 3 открытых вопроса перед показом.</li>
+            <li>Отработайте <b>презентацию</b>: одна выгода + одно доказательство на каждое свойство.</li>
+            <li>Цель на неделю: довести конверсию до ${fmtPct(Math.min(m.conversion + 5, 30))}.</li>
+          </ul>`
+      });
+    }
+    if (topStage === 'Презентация товара/услуги' && m.avgCheck > 0 && prevM.avgCheck > 0 && m.avgCheck < prevM.avgCheck) {
+      tips.push({
+        type: 'warn',
+        title: 'Презентация без допродажи',
+        body: `<p>Вы много работаете на этапе презентации, но чек снижается. Встройте допродажу прямо в презентацию:</p>
+          <ul>
+            <li>«К этому товару подходит…» — говорите до вопроса о цене.</li>
+            <li>Показывайте <b>комплект</b>, а не одну позицию.</li>
+          </ul>`
+      });
+    }
+    if (topStage === 'Работа по стандартам (скрипты)') {
+      tips.push({
+        type: 'ok',
+        title: 'Работа по стандартам — сильная сторона',
+        body: `<p>Вы опираетесь на скрипты и этапы продаж — это даёт стабильность. Проверьте:</p>
+          <ul>
+            <li>Не звучат ли скрипты шаблонно — добавляйте <b>живые вопросы по ситуации</b>.</li>
+            <li>Каждый день фиксируйте <b>одну формулировку</b>, которая сработала лучше всего.</li>
+          </ul>`
+      });
+    }
+  }
+
+  const html = `
+    <div class="hint-box">
+      <div>Рекомендации строятся по данным текущей декады: <b>${periodLabel(info)}</b>.
+      Чем больше дней заполнено, тем точнее советы.</div>
+    </div>
+    ${tips.map(t => `
+      <div class="advice ${t.type}">
+        <div class="advice-title">${t.title}</div>
+        <div class="advice-body">${t.body}</div>
+      </div>
+    `).join('')}
+  `;
+
+  $('#view-advice').innerHTML = html;
+}
+
+/* ==================================================================
+   HISTORY
+   ================================================================== */
+function renderHistory() {
+  const keys = getAllPeriodKeys();
+  const todayInfo = getPeriodInfo(toISO(new Date()));
+
+  if (keys.length === 0) {
+    $('#view-history').innerHTML = `
+      <div class="card">
+        <div class="empty">
+          История пуста.<br>
+          Внесите первые записи — здесь появятся прошедшие декады и сравнение.
+        </div>
+      </div>`;
+    return;
+  }
+
+  /* --- Сравнение текущей декады с предыдущей --- */
+  const prevInfo = prevPeriodInfo(todayInfo);
+  const curM = computeMetrics(getRecordsForPeriod(todayInfo.key));
+  const prevM = computeMetrics(getRecordsForPeriod(prevInfo.key));
+  const hasPrev = prevM.days > 0;
+
+  const cmpRows = [
+    ['Выручка', curM.revenue, prevM.revenue, 'money'],
+    ['Продажи', curM.sales, prevM.sales, 'num'],
+    ['Выходы в зал', curM.visits, prevM.visits, 'num'],
+    ['Конверсия', curM.conversion, prevM.conversion, 'pct'],
+    ['Средний чек', curM.avgCheck, prevM.avgCheck, 'money']
+  ];
+
+  function fmtCell(v, kind) {
+    if (kind === 'money') return money(v);
+    if (kind === 'pct') return fmtPct(v);
+    return nf(v);
+  }
+
+  function fmtDelta(cur, prev, kind) {
+    if (!prev) return '<span class="delta-flat">—</span>';
+    const diff = cur - prev;
+    const pct = (diff / prev) * 100;
+    const cls = diff > 0.0001 ? 'delta-up' : diff < -0.0001 ? 'delta-down' : 'delta-flat';
+    const sign = diff > 0 ? '+' : '';
+    if (kind === 'pct') return `<span class="${cls}">${sign}${(Math.round(diff * 10) / 10).toLocaleString('ru-RU')} п.п.</span>`;
+    return `<span class="${cls}">${sign}${Math.round(pct)}%</span>`;
+  }
+
+  const cmpHtml = hasPrev ? `
+    <div class="section-title">Текущая декада vs предыдущая</div>
+    <div class="card">
+      <div class="cmp-row">
+        <div>Показатель</div>
+        <div class="cmp-num">Сейчас</div>
+        <div class="cmp-num">Было</div>
+        <div class="cmp-num">Δ</div>
+      </div>
+      ${cmpRows.map(([name, cur, prev, kind]) => `
+        <div class="cmp-row">
+          <div>${name}</div>
+          <div class="cmp-num">${fmtCell(cur, kind)}</div>
+          <div class="cmp-num" style="color:var(--c-hint)">${fmtCell(prev, kind)}</div>
+          <div class="cmp-num">${fmtDelta(cur, prev, kind)}</div>
+        </div>
+      `).join('')}
+    </div>` : `
+    <div class="hint-box">
+      <div>Данных за предыдущую декаду нет — сравнение появится, когда накопится статистика.</div>
+    </div>`;
+
+  /* --- Список периодов --- */
+  const listHtml = keys.map(key => {
+    const info = getPeriodInfo(key + '') /* fallback */;
+    // Восстанавливаем info из ключа
+    const parts = key.split('-');
+    const y = +parts[0], mo = +parts[1] - 1, idx = +parts[2].replace('P', '');
+    const lastDay = new Date(y, mo + 1, 0).getDate();
+    const s = idx === 1 ? 1 : idx === 2 ? 11 : 21;
+    const e = idx === 1 ? 10 : idx === 2 ? 20 : lastDay;
+    const pinfo = { key, start: new Date(y, mo, s), end: new Date(y, mo, e), idx, y, m: mo, totalDays: e - s + 1 };
+
+    const recs = getRecordsForPeriod(key);
+    const mm = computeMetrics(recs);
+    const pl = getPlan(key);
+    const finPct = pl.finance > 0 ? (mm.revenue / pl.finance) * 100 : 0;
+    const lvl = pl.finance > 0 ? (finPct >= 100 ? 'ok' : finPct >= 80 ? 'warn' : 'bad') : 'neutral';
+
+    return `
+      <div class="card hist-item" data-period="${esc(key)}">
+        <div class="hist-top">
+          <div>
+            <div class="hist-name">${periodLabel(pinfo)}</div>
+            <div class="hist-date">${recs.length} ${plural(recs.length, 'запись', 'записи', 'записей')}${pl.finance > 0 ? ' · план ' + money(pl.finance) : ''}</div>
+          </div>
+          <div class="pill ${lvl === 'neutral' ? '' : lvl}">${pl.finance > 0 ? fmtPct(finPct) : '—'}</div>
+        </div>
+        <div class="hist-metrics">
+          <div class="hist-m"><b>${money(mm.revenue)}</b>выручка</div>
+          <div class="hist-m"><b>${nf(mm.sales)}</b>продажи</div>
+          <div class="hist-m"><b>${fmtPct(mm.conversion)}</b>конверсия</div>
+          <div class="hist-m"><b>${mm.avgCheck > 0 ? money(mm.avgCheck) : '—'}</b>средний чек</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  $('#view-history').innerHTML = `
+    ${cmpHtml}
+    <div class="section-title">Все декады</div>
+    ${listHtml}
+  `;
+
+  $$('#view-history [data-period]').forEach(el => {
+    el.addEventListener('click', () => openPeriodModal(el.getAttribute('data-period')));
+  });
+}
+
+function openPeriodModal(key) {
+  const parts = key.split('-');
+  const y = +parts[0], mo = +parts[1] - 1, idx = +parts[2].replace('P', '');
+  const lastDay = new Date(y, mo + 1, 0).getDate();
+  const s = idx === 1 ? 1 : idx === 2 ? 11 : 21;
+  const e = idx === 1 ? 10 : idx === 2 ? 20 : lastDay;
+  const info = { key, start: new Date(y, mo, s), end: new Date(y, mo, e), idx, y, m: mo, totalDays: e - s + 1 };
+
+  const recs = getRecordsForPeriod(key);
+  const m = computeMetrics(recs);
+  const pl = getPlan(key);
+
+  const rows = recs.slice().reverse().map(r => {
+    const d = fromISO(r.date);
+    return `
+      <div class="rec">
+        <div class="rec-main">
+          <div class="rec-date">${d.getDate()} ${MONTHS_GEN[d.getMonth()]}</div>
+          <div class="rec-meta">
+            ${nf(r.visits)} вых. · ${nf(r.sales)} прод. · ${money(r.revenue)}
+            ${r.stage ? ' · ' + esc(r.stage) : ''}
+            ${r.note ? ' · ' + esc(r.note) : ''}
+          </div>
+        </div>
+      </div>`;
+  }).join('') || '<div class="empty">Нет записей</div>';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-title">${periodLabel(info)}</div>
+      <div class="card-sub" style="margin-bottom:12px">
+        ${recs.length} ${plural(recs.length, 'день', 'дня', 'дней')} с данными
+      </div>
+
+      <div class="grid-2" style="margin-bottom:10px">
+        <div class="card metric">
+          <div class="metric-label">Выручка</div>
+          <div class="metric-value" style="font-size:18px">${money(m.revenue)}</div>
+          <div class="metric-sub">${pl.finance > 0 ? 'план ' + money(pl.finance) : 'план не задан'}</div>
+        </div>
+        <div class="card metric">
+          <div class="metric-label">Конверсия</div>
+          <div class="metric-value" style="font-size:18px">${fmtPct(m.conversion)}</div>
+          <div class="metric-sub">${nf(m.sales)} из ${nf(m.visits)}</div>
+        </div>
+        <div class="card metric">
+          <div class="metric-label">Сопутствующие</div>
+          <div class="metric-value" style="font-size:18px">${money(m.related)}</div>
+          <div class="metric-sub">${pl.related > 0 ? 'план ' + money(pl.related) : '—'}</div>
+        </div>
+        <div class="card metric">
+          <div class="metric-label">Услуги</div>
+          <div class="metric-value" style="font-size:18px">${money(m.services)}</div>
+          <div class="metric-sub">${pl.services > 0 ? 'план ' + money(pl.services) : '—'}</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:6px">Записи</div>
+        ${rows}
+      </div>
+
+      <button class="btn" id="modal-close">Закрыть</button>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+  const close = () => { backdrop.remove(); };
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+  $('#modal-close', backdrop).addEventListener('click', close);
+}
+
+/* ==================================================================
+   PLAN MODAL
+   ================================================================== */
+function openPlanModal() {
+  const todayStr = toISO(new Date());
+  const info = getPeriodInfo(todayStr);
+  const plan = getPlan(info.key);
+  const recs = getRecordsForPeriod(info.key);
+  const m = computeMetrics(recs);
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-title">План на декаду</div>
+      <div class="card-sub" style="margin-bottom:6px">${periodLabel(info)} · ${info.totalDays} дней</div>
+
+      <label class="field">
+        <span class="field-label">Финансовый план, ₽ (общая выручка)</span>
+        <input type="number" id="p-finance" inputmode="numeric" min="0" step="1000"
+               placeholder="например, 250000" value="${plan.finance || ''}">
+      </label>
+
+      <label class="field">
+        <span class="field-label">План: сопутствующие товары, ₽</span>
+        <input type="number" id="p-related" inputmode="numeric" min="0" step="500"
+               placeholder="например, 30000" value="${plan.related || ''}">
+      </label>
+
+      <label class="field">
+        <span class="field-label">План: услуги, ₽</span>
+        <input type="number" id="p-services" inputmode="numeric" min="0" step="500"
+               placeholder="например, 20000" value="${plan.services || ''}">
+      </label>
+
+      <div class="hint-box" style="margin-top:12px">
+        <div>Факт сейчас: выручка <b>${money(m.revenue)}</b>, сопутствующие <b>${money(m.related)}</b>, услуги <b>${money(m.services)}</b>.
+        План можно менять в любой момент — расчёты обновятся сразу.</div>
+      </div>
+
+      <button class="btn" id="p-save">Сохранить план</button>
+      <button class="btn secondary" id="p-cancel" style="margin-top:8px">Отмена</button>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+
+  const close = () => backdrop.remove();
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+  $('#p-cancel', backdrop).addEventListener('click', close);
+
+  $('#p-save', backdrop).addEventListener('click', () => {
+    const val = sel => {
+      const el = $(sel, backdrop);
+      const v = parseFloat(String(el.value).replace(/\s/g, '').replace(',', '.'));
+      return isFinite(v) && v > 0 ? v : 0;
+    };
+    state.plans[info.key] = {
+      finance:  val('#p-finance'),
+      related:  val('#p-related'),
+      services: val('#p-services')
+    };
+    persist();
+    haptic('success');
+    toast('План сохранён');
+    close();
+    renderDashboard();
+    renderAdvice();
+  });
+}
+
+/* ==================================================================
+   ONBOARDING
+   ================================================================== */
+function showOnboarding() {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-title">Добро пожаловать в трекер продаж</div>
+      <div class="card-sub" style="margin-bottom:14px">Помощник для ежедневного учёта и роста личных показателей</div>
+
+      <div class="card" style="margin-bottom:10px">
+        <div class="card-title">1. Задайте план на декаду</div>
+        <div class="card-sub">
+          Декада — это 10 дней: 1–10, 11–20, 21–конец месяца.
+          Нажмите кнопку <b>«План»</b> в шапке и укажите финансовый план,
+          план по сопутствующим товарам и услугам.
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:10px">
+        <div class="card-title">2. Вносите данные каждый день</div>
+        <div class="card-sub">
+          На вкладке «Ввод» заполните: выходы в зал, количество продаж, выручку.
+          Дополнительно — сумму сопутствующих товаров и услуг, а также этап,
+          на котором шла основная работа.<br><br>
+          <b>Пример:</b> выходы — 12, продажи — 3, выручка — 24 000 ₽,
+          из них сопутствующие — 3 500 ₽, услуги — 2 000 ₽.
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">3. Смотрите аналитику и советы</div>
+        <div class="card-sub">
+          Дашборд покажет план-факт и цветовую индикацию, вкладка «Графики» — диаграммы
+          с выгрузкой в PNG, JPEG и SVG, вкладка «Советы» — что именно улучшить.
+        </div>
+      </div>
+
+      <button class="btn" id="onb-close">Начать работу</button>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+
+  const close = () => {
+    state.settings.onboarded = true;
+    persist();
+    backdrop.remove();
+  };
+
+  $('#onb-close', backdrop).addEventListener('click', close);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+}
+
+/* ==================================================================
+   НАВИГАЦИЯ
+   ================================================================== */
+let currentView = 'dashboard';
+
+const VIEW_RENDERERS = {
+  dashboard: renderDashboard,
+  entry: renderEntry,
+  analytics: renderAnalytics,
+  advice: renderAdvice,
+  history: renderHistory
+};
+
+function switchView(name) {
+  currentView = name;
+  $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+  $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+
+  const fn = VIEW_RENDERERS[name];
+  if (fn) fn();
+
+  updateHeader();
+  window.scrollTo({ top: 0, behavior: 'auto' });
+  haptic('light');
+}
+
+function updateHeader() {
+  const info = getPeriodInfo(toISO(new Date()));
+  const titles = {
+    dashboard: 'Обзор',
+    entry: 'Ввод данных',
+    analytics: 'Аналитика',
+    advice: 'Рекомендации',
+    history: 'История'
+  };
+  $('#tbTitle').textContent = titles[currentView] || 'Трекер продаж';
+  $('#tbSub').textContent = periodLabel(info) + ' · декада ' + info.idx;
+}
+
+function bindNav() {
+  $$('.tab').forEach(b => {
+    b.addEventListener('click', () => switchView(b.dataset.view));
+  });
+
+  $('#btnPlan').addEventListener('click', openPlanModal);
+}
+
+/* ==================================================================
+   СТАРТ
+   ================================================================== */
+function init() {
+  bindNav();
+  switchView('dashboard');
+
+  if (!state.settings.onboarded) {
+    setTimeout(showOnboarding, 350);
+  }
+
+  // Реакция на смену темы Telegram
+  try {
+    if (TG && TG.onEvent) {
+      TG.onEvent('themeChanged', () => {
+        const fn = VIEW_RENDERERS[currentView];
+        if (fn) fn();
+      });
+    }
+  } catch (e) {}
+}
+
+document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  init();
+}
+</script>
+</body>
+</html>
