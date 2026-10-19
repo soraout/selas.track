@@ -1,0 +1,1809 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Трекер продаж</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ===== Тема Telegram ===== */
+:root{
+  --c-bg: var(--tg-theme-bg-color, #ffffff);
+  --c-text: var(--tg-theme-text-color, #000000);
+  --c-hint: var(--tg-theme-hint-color, #8e8e93);
+  --c-secondary: var(--tg-theme-secondary-bg-color, #f2f2f7);
+  --c-button: var(--tg-theme-button-color, #2f7cf6);
+  --c-button-text: var(--tg-theme-button-text-color, #ffffff);
+  --c-link: var(--tg-theme-link-color, #2f7cf6);
+  --c-destructive: var(--tg-theme-destructive-text-color, #e5484d);
+  --c-border: rgba(128,128,128,.22);
+  --ok:#2f9e5f; --warn:#c98207; --bad:#d64545;
+  --radius:14px;
+}
+body[data-scheme="dark"]{ --ok:#3ddc84; --warn:#ffb340; --bad:#ff5c5c; --c-border: rgba(255,255,255,.16); }
+
+*,*::before,*::after{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; height:100%; }
+body{
+  display:flex; flex-direction:column; overflow:hidden;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text','Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size:15px; line-height:1.42;
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior-y: none;
+}
+main{
+  flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding: 14px 12px 22px;
+}
+
+/* ===== Общие элементы ===== */
+h1,h2,h3,h4{ margin:0; font-weight:600; }
+.page-title{ font-size:19px; letter-spacing:-.2px; margin-bottom:2px; }
+.page-sub{ color: var(--c-hint); font-size:12.5px; margin-bottom:14px; }
+
+.card{
+  background: var(--c-secondary);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.card.plain{ background: transparent; padding:0; }
+
+.section-header{
+  font-size:11.5px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.5px; color: var(--c-hint);
+  margin: 16px 4px 8px;
+}
+.section-header:first-child{ margin-top:4px; }
+
+.btn{
+  appearance:none; border:0; cursor:pointer; font-family:inherit;
+  background: var(--c-button); color: var(--c-button-text);
+  border-radius:12px; padding:12px 16px; width:100%;
+  font-size:15px; font-weight:600; transition: opacity .15s;
+}
+.btn:active{ opacity:.75; }
+.btn.ghost{
+  background: transparent; color: var(--c-link);
+  border: 1px solid var(--c-border);
+}
+.btn.danger{ background: transparent; color: var(--c-destructive); border:1px solid var(--c-border); }
+.btn.small{ padding:8px 12px; font-size:13px; border-radius:9px; width:auto; }
+
+input,select,textarea{
+  width:100%; font-family:inherit; font-size:16px;
+  padding:11px 12px; border-radius:11px;
+  background: var(--c-bg);
+  color: var(--c-text);
+  border:1px solid var(--c-border);
+  outline:none; transition: border-color .15s;
+}
+input:focus,select:focus,textarea:focus{ border-color: var(--c-button); }
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+input[type=number]{ -moz-appearance:textfield; }
+
+label.field{ display:block; margin-bottom:10px; }
+label.field > span{
+  display:block; font-size:12px; font-weight:600; color: var(--c-hint);
+  margin-bottom:5px; letter-spacing:.15px;
+}
+.field-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+
+.good{ color: var(--ok); }
+.warn{ color: var(--warn); }
+.bad{ color: var(--bad); }
+.neutral{ color: var(--c-text); }
+.muted{ color: var(--c-hint); }
+
+/* ===== Прогресс-бар ===== */
+.bar{ height:8px; border-radius:6px; background: rgba(128,128,128,.2); overflow:hidden; margin:8px 0; }
+.bar > i{ display:block; height:100%; border-radius:6px; transition: width .45s ease; }
+.bar > i.good{ background: var(--ok); }
+.bar > i.warn{ background: var(--warn); }
+.bar > i.bad{ background: var(--bad); }
+.bar > i.neutral{ background: var(--c-hint); }
+
+/* ===== Карточки плана ===== */
+.plan-card{
+  background: var(--c-secondary); border-radius: var(--radius);
+  padding: 13px 14px; margin-bottom:9px;
+}
+.plan-head{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.plan-title{ font-size:13.5px; font-weight:600; }
+.plan-pct{ font-size:14px; font-weight:700; }
+.plan-figures{ display:flex; justify-content:space-between; font-size:12.5px; gap:8px; }
+.plan-figures b{ font-weight:600; }
+.plan-left{ font-size:12px; color: var(--c-hint); margin-top:3px; }
+
+/* ===== Метрики ===== */
+.metrics{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.metric{
+  background: var(--c-secondary); border-radius: var(--radius);
+  padding: 12px 13px;
+}
+.metric-label{ font-size:11.5px; color: var(--c-hint); font-weight:500; margin-bottom:3px; }
+.metric-value{ font-size:19px; font-weight:700; letter-spacing:-.3px; }
+.metric-sub{ font-size:11.5px; color: var(--c-hint); margin-top:2px; }
+
+/* ===== Верхняя карточка декады ===== */
+.hero{
+  background: linear-gradient(135deg, var(--c-button) 0%, color-mix(in srgb, var(--c-button) 70%, #000 0%) 100%);
+  color: var(--c-button-text);
+  border-radius: 16px; padding: 15px 16px; margin-bottom:12px;
+  position:relative; overflow:hidden;
+}
+.hero::after{
+  content:''; position:absolute; right:-40px; top:-50px;
+  width:150px; height:150px; border-radius:50%;
+  background: rgba(255,255,255,.09);
+}
+.hero-top{ display:flex; justify-content:space-between; align-items:flex-start; position:relative; }
+.hero-title{ font-size:12.5px; opacity:.85; font-weight:500; }
+.hero-days{ font-size:11.5px; opacity:.8; margin-top:2px; }
+.hero-big{ font-size:26px; font-weight:700; letter-spacing:-.6px; margin-top:9px; position:relative; }
+.hero-sub{ font-size:12.5px; opacity:.85; margin-top:2px; position:relative; }
+.hero .bar{ background: rgba(255,255,255,.25); position:relative; margin-top:12px; }
+.hero .bar > i{ background: #fff; }
+
+/* ===== Список записей ===== */
+.entry{
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+  padding: 11px 13px; background: var(--c-secondary);
+  border-radius: 12px; margin-bottom:7px;
+}
+.entry-main{ min-width:0; }
+.entry-date{ font-size:13px; font-weight:600; }
+.entry-meta{ font-size:11.5px; color: var(--c-hint); margin-top:2px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.entry-sum{ font-size:14px; font-weight:700; white-space:nowrap; }
+.entry-actions{ display:flex; gap:6px; margin-left:4px; }
+.icon-btn{
+  appearance:none; border:0; background: transparent; cursor:pointer;
+  width:32px; height:32px; border-radius:9px; display:grid; place-items:center;
+  color: var(--c-hint); transition: background .15s, color .15s;
+}
+.icon-btn:active{ background: rgba(128,128,128,.2); }
+.icon-btn svg{ width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.9;
+  stroke-linecap:round; stroke-linejoin:round; }
+
+/* ===== Табы ===== */
+.tabs{
+  flex-shrink:0; display:grid; grid-template-columns:repeat(5,1fr);
+  background: var(--c-secondary);
+  border-top:1px solid var(--c-border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.tab{
+  appearance:none; border:0; background:transparent; cursor:pointer;
+  padding: 8px 2px 9px; font-family:inherit;
+  color: var(--c-hint); font-size:10.5px; font-weight:500;
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  transition: color .15s;
+}
+.tab.active{ color: var(--c-button); }
+.tab svg{ width:21px; height:21px; stroke:currentColor; fill:none; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round; }
+
+/* ===== Графики ===== */
+.chart-card{ background: var(--c-secondary); border-radius: var(--radius); padding:13px; margin-bottom:11px; }
+.chart-title{ font-size:13.5px; font-weight:600; margin-bottom:2px; }
+.chart-desc{ font-size:11.5px; color: var(--c-hint); margin-bottom:10px; }
+.chart-wrap{ position:relative; height:190px; }
+.chart-wrap.tall{ height:220px; }
+.export-row{ display:flex; gap:6px; margin-top:11px; }
+.export-row .btn{ flex:1; padding:8px 4px; font-size:12px; border-radius:9px; }
+
+/* ===== Советы ===== */
+.tip{
+  border-radius: var(--radius); padding: 13px 14px; margin-bottom:9px;
+  background: var(--c-secondary);
+  border-left: 3px solid var(--c-hint);
+}
+.tip.good{ border-left-color: var(--ok); }
+.tip.warn{ border-left-color: var(--warn); }
+.tip.bad{ border-left-color: var(--bad); }
+.tip-title{ font-size:13.5px; font-weight:600; margin-bottom:5px; display:flex; align-items:center; gap:7px; }
+.tip-title .dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.tip.good .dot{ background: var(--ok); }
+.tip.warn .dot{ background: var(--warn); }
+.tip.bad .dot{ background: var(--bad); }
+.tip-text{ font-size:13px; color: var(--c-text); opacity:.88; }
+.tip-text ul{ margin:6px 0 0; padding-left:17px; }
+.tip-text li{ margin-bottom:4px; }
+
+/* ===== История ===== */
+.period-card{ background: var(--c-secondary); border-radius: var(--radius); padding:13px 14px; margin-bottom:9px; }
+.period-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+.period-title{ font-size:13.5px; font-weight:600; }
+.period-sub{ font-size:11.5px; color: var(--c-hint); margin-top:1px; }
+.badge{
+  font-size:12.5px; font-weight:700; padding:4px 10px; border-radius:20px;
+  background: rgba(128,128,128,.15);
+}
+.period-stats{ display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; font-size:12.5px; }
+.period-stats > div{ display:flex; justify-content:space-between; gap:6px; }
+.period-stats span{ color: var(--c-hint); }
+.period-stats b{ font-weight:600; }
+.delta{ font-size:12px; margin-top:9px; padding-top:9px; border-top:1px solid var(--c-border); }
+
+/* ===== Модальное окно ===== */
+.modal-backdrop{
+  position:fixed; inset:0; background: rgba(0,0,0,.45); z-index:100;
+  display:flex; align-items:flex-end; justify-content:center;
+  animation: fadeIn .18s ease;
+}
+.modal-backdrop[hidden]{ display:none; }
+@keyframes fadeIn{ from{opacity:0} to{opacity:1} }
+.modal{
+  background: var(--c-bg); width:100%; max-width:520px;
+  border-radius: 18px 18px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+  max-height: 88vh; overflow-y:auto;
+  animation: slideUp .22s cubic-bezier(.2,.8,.3,1);
+}
+@keyframes slideUp{ from{ transform: translateY(30px); opacity:.6 } to{ transform:none; opacity:1 } }
+.modal-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+.modal-head h3{ font-size:17px; }
+
+.empty{
+  text-align:center; padding: 30px 18px; color: var(--c-hint); font-size:13.5px;
+}
+.empty b{ display:block; color: var(--c-text); font-size:15px; margin-bottom:6px; }
+
+.hint-box{
+  background: rgba(128,128,128,.1); border-radius:11px;
+  padding:10px 12px; font-size:12.5px; color: var(--c-hint); margin-top:10px;
+}
+.hint-box b{ color: var(--c-text); font-weight:600; }
+
+.row-between{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+</style>
+</head>
+<body data-scheme="light">
+
+<main id="view"></main>
+
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-tab="dash">
+    <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/></svg>
+    <span>Обзор</span>
+  </button>
+  <button class="tab" data-tab="add">
+    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    <span>Ввод</span>
+  </button>
+  <button class="tab" data-tab="chart">
+    <svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="6" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg>
+    <span>Графики</span>
+  </button>
+  <button class="tab" data-tab="tips">
+    <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.4.3.5.7.5 1.1v.5h6v-.5c0-.4.1-.8.5-1.1A6 6 0 0 0 12 3z"/></svg>
+    <span>Советы</span>
+  </button>
+  <button class="tab" data-tab="hist">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    <span>История</span>
+  </button>
+</nav>
+
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<script>
+/* ==========================================================
+   ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP
+   ========================================================== */
+const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+
+function applyTelegramTheme(){
+  const scheme = (tg && tg.colorScheme) ? tg.colorScheme : 
+    (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.body.dataset.scheme = scheme;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta){
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--c-bg').trim();
+    if(bg) meta.setAttribute('content', bg);
+  }
+}
+
+if(tg){
+  try{ tg.ready(); }catch(e){}
+  try{ tg.expand(); }catch(e){}
+  try{
+    tg.setHeaderColor && tg.setHeaderColor('secondary_bg_color');
+    tg.setBackgroundColor && tg.setBackgroundColor('bg_color');
+  }catch(e){}
+  if(tg.onEvent){
+    tg.onEvent('themeChanged', () => {
+      applyTelegramTheme();
+      if(state.ui.tab === 'chart') setTimeout(initCharts, 60);
+      render();
+    });
+    tg.onEvent('viewportChanged', () => {
+      if(state.ui.tab === 'chart') setTimeout(initCharts, 60);
+    });
+  }
+}
+applyTelegramTheme();
+
+function haptic(type){
+  if(!tg || !tg.HapticFeedback) return;
+  try{
+    if(type === 'success') tg.HapticFeedback.notificationOccurred('success');
+    else if(type === 'error') tg.HapticFeedback.notificationOccurred('error');
+    else if(type === 'select') tg.HapticFeedback.selectionChanged();
+    else tg.HapticFeedback.impactOccurred('light');
+  }catch(e){}
+}
+
+/* ==========================================================
+   КОНСТАНТЫ И СОСТОЯНИЕ
+   ========================================================== */
+const STORE_KEY = 'sales_tracker_v1';
+const DAY = 86400000;
+const ANCHOR_UTC = Date.UTC(2024, 0, 1);   // точка отсчёта декад
+const PERIOD_LEN = 10;                      // длина декады в днях
+
+const DEFAULT_SETTINGS = {
+  planExits: 100,       // план выходов за декаду
+  costPerExit: 500,     // стоимость одного выхода, ₽
+  relatedPct: 16,       // % сопутствующих от финансового плана
+  servicePerPct: 40,    // ₽ услуг за 1% выполнения финплана
+  accrual: true         // план растёт по дням декады
+};
+
+const STAGES = [
+  { id:'floor',   label:'Выход в зал к покупателям' },
+  { id:'consult', label:'Консультирование' },
+  { id:'present', label:'Презентация товара/услуги' },
+  { id:'script',  label:'Работа по стандартам и скриптам' }
+];
+const STAGE_LABEL = Object.fromEntries(STAGES.map(s => [s.id, s.label]));
+
+const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня',
+                    'июля','августа','сентября','октября','ноября','декабря'];
+
+let state = {
+  settings: { ...DEFAULT_SETTINGS },
+  entries: [],
+  ui: { tab: 'dash', editId: null, addDate: null }
+};
+
+/* ==========================================================
+   УТИЛИТЫ
+   ========================================================== */
+const pad2 = n => String(n).padStart(2, '0');
+const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+function todayStr(){
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
+function dParse(str){ const [y,m,d] = str.split('-').map(Number); return Date.UTC(y, m-1, d); }
+function dFmt(utc){
+  const d = new Date(utc);
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())}`;
+}
+function addDays(str, n){ return dFmt(dParse(str) + n * DAY); }
+
+function periodIdxOf(dateStr){ return Math.floor((dParse(dateStr) - ANCHOR_UTC) / (DAY * PERIOD_LEN)); }
+function periodStartUTC(idx){ return ANCHOR_UTC + idx * PERIOD_LEN * DAY; }
+function periodDates(idx){
+  const s = periodStartUTC(idx);
+  return Array.from({ length: PERIOD_LEN }, (_, i) => dFmt(s + i * DAY));
+}
+function dayNumberInPeriod(dateStr, idx){
+  const n = Math.floor((dParse(dateStr) - periodStartUTC(idx)) / DAY) + 1;
+  return Math.min(PERIOD_LEN, Math.max(1, n));
+}
+
+const nfMoney = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
+const nfNum   = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 });
+
+function fmtMoney(v){ return nfMoney.format(Math.round(num(v))) + ' ₽'; }
+function fmtNum(v){ return nfNum.format(num(v)); }
+function fmtPct(v){ return (isFinite(v) ? Math.round(v) : 0) + '%'; }
+function fmtDateRu(str){
+  const [y,m,d] = str.split('-').map(Number);
+  return `${d} ${MONTHS_GEN[m-1]}`;
+}
+function fmtDateShort(str){
+  const [,m,d] = str.split('-').map(Number);
+  return `${pad2(d)}.${pad2(m)}`;
+}
+
+/* ==========================================================
+   ХРАНИЛИЩЕ
+   ========================================================== */
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw){
+      const p = JSON.parse(raw);
+      state.settings = Object.assign({}, DEFAULT_SETTINGS, p.settings || {});
+      state.entries  = Array.isArray(p.entries) ? p.entries : [];
+    }
+  }catch(e){ console.warn('load error', e); }
+}
+function saveState(){
+  try{
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      settings: state.settings,
+      entries: state.entries
+    }));
+  }catch(e){ console.warn('save error', e); }
+}
+
+/* ==========================================================
+   РАСЧЁТЫ
+   ========================================================== */
+function emptySum(){ return { exits:0, sales:0, revenue:0, related:0, services:0, count:0 }; }
+
+function sumEntries(list){
+  const r = emptySum();
+  for(const e of list){
+    r.exits    += num(e.exits);
+    r.sales    += num(e.sales);
+    r.revenue  += num(e.revenue);
+    r.related  += num(e.related);
+    r.services += num(e.services);
+    r.count++;
+  }
+  return r;
+}
+function entriesInPeriod(idx){
+  return state.entries.filter(e => e.date && periodIdxOf(e.date) === idx);
+}
+
+/**
+ * План на N-й день декады (накопительно).
+ * Финансовый план = кол-во выходов × стоимость выхода
+ * Сопутствующие  = % от финансового плана
+ * Услуги         = 100% выполнения финплана × ставка ₽ за 1%
+ */
+function planFor(dayN){
+  const s = state.settings;
+  const factor = s.accrual ? Math.min(1, Math.max(0, dayN / PERIOD_LEN)) : 1;
+  const exits = num(s.planExits) * factor;
+  const fin = exits * num(s.costPerExit);
+  return {
+    factor,
+    exits,
+    fin,
+    related:  fin * (num(s.relatedPct) / 100),
+    services: 100 * num(s.servicePerPct) * factor,
+    fullFin:  num(s.planExits) * num(s.costPerExit),
+    fullRelated: num(s.planExits) * num(s.costPerExit) * (num(s.relatedPct) / 100),
+    fullServices: 100 * num(s.servicePerPct)
+  };
+}
+
+function pctClass(p){
+  if(!isFinite(p)) return 'neutral';
+  if(p >= 100) return 'good';
+  if(p >= 80) return 'warn';
+  return 'bad';
+}
+function convClass(c, exits){
+  if(!exits) return 'neutral';
+  if(c >= 25) return 'good';
+  if(c >= 15) return 'warn';
+  return 'bad';
+}
+
+/* ==========================================================
+   НАВИГАЦИЯ / РЕНДЕР
+   ========================================================== */
+function go(tab){
+  state.ui.tab = tab;
+  render();
+  const main = document.getElementById('view');
+  if(main) main.scrollTop = 0;
+}
+window.go = go;
+
+function render(){
+  const view = document.getElementById('view');
+  const tab = state.ui.tab;
+  let html = '';
+
+  if(tab === 'dash')       html = viewDash();
+  else if(tab === 'add')   html = viewAdd();
+  else if(tab === 'chart') html = viewCharts();
+  else if(tab === 'tips')  html = viewTips();
+  else if(tab === 'hist')  html = viewHist();
+
+  view.innerHTML = html;
+
+  document.querySelectorAll('.tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+
+  if(tab === 'add')  bindAddForm();
+  if(tab === 'chart') setTimeout(initCharts, 20);
+  if(tab === 'hist')  bindHistory();
+}
+
+/* ==========================================================
+   ЭКРАН: ОБЗОР
+   ========================================================== */
+function viewDash(){
+  const today = todayStr();
+  const pi = periodIdxOf(today);
+  const dates = periodDates(pi);
+  const dayN = dayNumberInPeriod(today, pi);
+
+  const list = entriesInPeriod(pi);
+  const sum = sumEntries(list);
+  const plan = planFor(dayN);
+
+  const conv = sum.exits > 0 ? (sum.sales / sum.exits * 100) : 0;
+  const avg = sum.sales > 0 ? (sum.revenue / sum.sales) : 0;
+
+  const finPct = plan.fin > 0 ? sum.revenue / plan.fin * 100 : 0;
+  const relPct = plan.related > 0 ? sum.related / plan.related * 100 : 0;
+  const srvPct = plan.services > 0 ? sum.services / plan.services * 100 : 0;
+
+  const daysLeft = PERIOD_LEN - dayN;
+
+  // сравнение среднего чека с прошлой декадой
+  const prevSum = sumEntries(entriesInPeriod(pi - 1));
+  const prevAvg = prevSum.sales > 0 ? prevSum.revenue / prevSum.sales : 0;
+  let avgCls = 'neutral';
+  if(prevAvg > 0 && avg > 0){
+    if(avg >= prevAvg) avgCls = 'good';
+    else if(avg >= prevAvg * 0.85) avgCls = 'warn';
+    else avgCls = 'bad';
+  }
+
+  const hasData = state.entries.length > 0;
+
+  let html = '';
+
+  html += `
+  <div class="row-between" style="margin-bottom:12px">
+    <div>
+      <div class="page-title">Обзор</div>
+      <div class="page-sub" style="margin-bottom:0">Декада ${fmtDateRu(dates[0])} — ${fmtDateRu(dates[9])}</div>
+    </div>
+    <button class="icon-btn" onclick="openSettings()" aria-label="Настройки плана">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+  `;
+
+  // Hero-карточка
+  html += `
+  <div class="hero">
+    <div class="hero-top">
+      <div>
+        <div class="hero-title">Выполнение финансового плана</div>
+        <div class="hero-days">День ${dayN} из ${PERIOD_LEN}${daysLeft > 0 ? ` · осталось ${daysLeft} дн.` : ' · последний день'}</div>
+      </div>
+    </div>
+    <div class="hero-big">${fmtMoney(sum.revenue)}</div>
+    <div class="hero-sub">из ${fmtMoney(plan.fin)} · ${fmtPct(finPct)}</div>
+    <div class="bar"><i style="width:${Math.min(100, Math.max(0, finPct))}%"></i></div>
+  </div>
+  `;
+
+  // Приветственный блок
+  if(!hasData){
+    html += `
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:8px">Как это работает</h3>
+      <div class="tip-text" style="font-size:13px">
+        <ul style="padding-left:17px;margin:0">
+          <li><b>Декада</b> — 10 дней. План обнуляется в начале каждой декады.</li>
+          <li>Каждый день вносите: выходы в зал, продажи и сумму выручки.</li>
+          <li>План растёт пропорционально прошедшим дням декады.</li>
+          <li>Смотрите графики и персональные рекомендации.</li>
+        </ul>
+      </div>
+      <div class="hint-box" style="margin-top:12px">
+        <b>Пример:</b> план 100 выходов за декаду × 500 ₽ за выход = 50 000 ₽ финплан.
+        Сопутствующие — 16% от него (8 000 ₽), услуги — 40 ₽ за каждый процент финплана (4 000 ₽ при 100%).
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn" onclick="go('add')">Внести первый день</button>
+        <button class="btn ghost" onclick="openSettings()">Настроить</button>
+      </div>
+    </div>
+    `;
+  }
+
+  // План-факт по категориям
+  html += `<div class="section-header">План — факт</div>`;
+  html += planCard('Финансовый план', sum.revenue, plan.fin, finPct);
+  html += planCard('Сопутствующие товары', sum.related, plan.related, relPct);
+  html += planCard('Услуги', sum.services, plan.services, srvPct);
+
+  // Метрики
+  html += `<div class="section-header">Ключевые показатели</div>`;
+  html += `<div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Выходы в зал</div>
+      <div class="metric-value">${fmtNum(sum.exits)}</div>
+      <div class="metric-sub">план ${fmtNum(plan.exits)}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Продажи</div>
+      <div class="metric-value">${fmtNum(sum.sales)}</div>
+      <div class="metric-sub">из ${fmtNum(sum.exits)} выходов</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Средний чек</div>
+      <div class="metric-value ${avgCls}">${avg > 0 ? fmtMoney(avg) : '—'}</div>
+      <div class="metric-sub">${prevAvg > 0 ? 'прошлая: ' + fmtMoney(prevAvg) : 'нет истории'}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Конверсия</div>
+      <div class="metric-value ${convClass(conv, sum.exits)}">${sum.exits > 0 ? fmtPct(conv) : '—'}</div>
+      <div class="metric-sub">норма от 25%</div>
+    </div>
+    <div class="metric" style="grid-column: span 2">
+      <div class="metric-label">Выручка за декаду</div>
+      <div class="metric-value">${fmtMoney(sum.revenue)}</div>
+      <div class="metric-sub">до плана декады осталось ${fmtMoney(Math.max(0, plan.fullFin - sum.revenue))}</div>
+    </div>
+  </div>`;
+
+  // Последние записи
+  const recent = [...state.entries].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 4);
+  if(recent.length){
+    html += `<div class="section-header">Последние записи</div>`;
+    recent.forEach(e => { html += entryRowHtml(e); });
+  }
+
+  return html;
+}
+
+function planCard(title, fact, planVal, pct){
+  const cls = pctClass(pct);
+  const left = Math.max(0, planVal - fact);
+  return `
+  <div class="plan-card">
+    <div class="plan-head">
+      <span class="plan-title">${esc(title)}</span>
+      <span class="plan-pct ${cls}">${fmtPct(pct)}</span>
+    </div>
+    <div class="bar"><i class="${cls}" style="width:${Math.min(100, Math.max(0, pct))}%"></i></div>
+    <div class="plan-figures">
+      <span>Факт: <b>${fmtMoney(fact)}</b></span>
+      <span class="muted">План: ${fmtMoney(planVal)}</span>
+    </div>
+    <div class="plan-left">${left > 0 ? 'Остаток до плана: ' + fmtMoney(left) : 'План выполнен'}</div>
+  </div>`;
+}
+
+function entryRowHtml(e){
+  const conv = num(e.exits) > 0 ? num(e.sales) / num(e.exits) * 100 : 0;
+  const stage = e.stage && STAGE_LABEL[e.stage] ? STAGE_LABEL[e.stage] : '';
+  return `
+  <div class="entry">
+    <div class="entry-main">
+      <div class="entry-date">${fmtDateRu(e.date)}</div>
+      <div class="entry-meta">${fmtNum(e.exits)} вых. · ${fmtNum(e.sales)} прод. · ${fmtPct(conv)}${stage ? ' · ' + esc(stage) : ''}</div>
+    </div>
+    <div class="entry-sum">${fmtMoney(e.revenue)}</div>
+    <div class="entry-actions">
+      <button class="icon-btn" onclick="editEntry('${e.id}')" aria-label="Изменить">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+/* ==========================================================
+   ЭКРАН: ВВОД
+   ========================================================== */
+function viewAdd(){
+  const editId = state.ui.editId;
+  let e = editId ? state.entries.find(x => x.id === editId) : null;
+
+  const dateVal = e ? e.date : (state.ui.addDate || todayStr());
+  const exits = e ? e.exits : '';
+  const sales = e ? e.sales : '';
+  const revenue = e ? e.revenue : '';
+  const related = e ? e.related : '';
+  const services = e ? e.services : '';
+  const stage = e ? e.stage : 'floor';
+
+  const stageOptions = STAGES.map(s =>
+    `<option value="${s.id}" ${stage === s.id ? 'selected' : ''}>${esc(s.label)}</option>`
+  ).join('');
+
+  // записи за выбранный день
+  const dayEntries = state.entries
+    .filter(x => x.date === dateVal)
+    .sort((a,b) => b.created - a.created);
+
+  let html = '';
+  html += `
+  <div class="page-title">${editId ? 'Редактирование записи' : 'Ввод данных за день'}</div>
+  <div class="page-sub">Заполните показатели — расчёт произойдёт автоматически</div>
+  `;
+
+  html += `
+  <div class="card">
+    <form id="entryForm" autocomplete="off">
+      <label class="field">
+        <span>Дата</span>
+        <input type="date" id="f-date" value="${dateVal}" required>
+      </label>
+
+      <div class="field-row">
+        <label class="field">
+          <span>Выходы в зал</span>
+          <input type="number" id="f-exits" inputmode="numeric" min="0" step="1" placeholder="например 12" value="${exits}">
+        </label>
+        <label class="field">
+          <span>Продажи, шт.</span>
+          <input type="number" id="f-sales" inputmode="numeric" min="0" step="1" placeholder="например 3" value="${sales}">
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Выручка за день, ₽</span>
+        <input type="number" id="f-revenue" inputmode="decimal" min="0" step="1" placeholder="например 15 000" value="${revenue}">
+      </label>
+
+      <div class="field-row">
+        <label class="field">
+          <span>Из них сопутствующие, ₽</span>
+          <input type="number" id="f-related" inputmode="decimal" min="0" step="1" placeholder="например 2 400" value="${related}">
+        </label>
+        <label class="field">
+          <span>Из них услуги, ₽</span>
+          <input type="number" id="f-services" inputmode="decimal" min="0" step="1" placeholder="например 1 200" value="${services}">
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Основной этап продаж за день</span>
+        <select id="f-stage">${stageOptions}</select>
+      </label>
+
+      <div class="hint-box" id="form-hint">Конверсия: <b>—</b> · Средний чек: <b>—</b></div>
+
+      <div style="margin-top:14px; display:flex; gap:8px">
+        <button type="submit" class="btn">${editId ? 'Сохранить изменения' : 'Сохранить запись'}</button>
+      </div>
+      ${editId ? '<button type="button" class="btn ghost" style="margin-top:8px" onclick="cancelEdit()">Отменить редактирование</button>' : ''}
+    </form>
+  </div>
+  `;
+
+  if(dayEntries.length){
+    html += `<div class="section-header">Записи за ${fmtDateRu(dateVal)}</div>`;
+    dayEntries.forEach(x => {
+      html += `
+      <div class="entry">
+        <div class="entry-main">
+          <div class="entry-date">${fmtMoney(x.revenue)}</div>
+          <div class="entry-meta">${fmtNum(x.exits)} вых. · ${fmtNum(x.sales)} прод.${x.stage && STAGE_LABEL[x.stage] ? ' · ' + esc(STAGE_LABEL[x.stage]) : ''}</div>
+        </div>
+        <div class="entry-actions">
+          <button class="icon-btn" onclick="editEntry('${x.id}')" aria-label="Изменить">
+            <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          </button>
+          <button class="icon-btn" onclick="deleteEntry('${x.id}')" aria-label="Удалить">
+            <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>
+          </button>
+        </div>
+      </div>`;
+    });
+  }
+
+  html += `
+  <div class="hint-box" style="margin-top:14px">
+    <b>Подсказка.</b> Вносите данные в конце рабочего дня. Конверсия считается как
+    продажи ÷ выходы, средний чек — как выручка ÷ продажи.
+    Сопутствующие товары и услуги входят в общую выручку и учитываются отдельно для плана.
+  </div>
+  `;
+
+  return html;
+}
+
+function bindAddForm(){
+  const form = document.getElementById('entryForm');
+  if(!form) return;
+
+  const upd = () => {
+    const exits = num(document.getElementById('f-exits').value);
+    const sales = num(document.getElementById('f-sales').value);
+    const rev = num(document.getElementById('f-revenue').value);
+    const conv = exits > 0 ? sales / exits * 100 : 0;
+    const avg = sales > 0 ? rev / sales : 0;
+    const hint = document.getElementById('form-hint');
+    if(hint){
+      hint.innerHTML = `Конверсия: <b class="${convClass(conv, exits)}">${exits > 0 ? fmtPct(conv) : '—'}</b> · Средний чек: <b>${avg > 0 ? fmtMoney(avg) : '—'}</b>`;
+    }
+  };
+
+  ['f-exits','f-sales','f-revenue','f-related','f-services'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input', upd);
+  });
+  upd();
+
+  form.addEventListener('submit', ev => {
+    ev.preventDefault();
+    const date = document.getElementById('f-date').value;
+    if(!date){ alert('Укажите дату'); return; }
+
+    const data = {
+      date,
+      exits:    num(document.getElementById('f-exits').value),
+      sales:    num(document.getElementById('f-sales').value),
+      revenue:  num(document.getElementById('f-revenue').value),
+      related:  num(document.getElementById('f-related').value),
+      services: num(document.getElementById('f-services').value),
+      stage:    document.getElementById('f-stage').value
+    };
+
+    if(state.ui.editId){
+      const item = state.entries.find(x => x.id === state.ui.editId);
+      if(item) Object.assign(item, data);
+      state.ui.editId = null;
+    }else{
+      // одна запись на дату — перезаписываем
+      const existing = state.entries.find(x => x.date === date);
+      if(existing){
+        Object.assign(existing, data);
+      }else{
+        state.entries.push({ id: uid(), created: Date.now(), ...data });
+      }
+    }
+
+    saveState();
+    haptic('success');
+    state.ui.addDate = date;
+    go('dash');
+  });
+}
+
+window.editEntry = function(id){
+  const e = state.entries.find(x => x.id === id);
+  if(!e) return;
+  state.ui.editId = id;
+  state.ui.addDate = e.date;
+  go('add');
+  haptic('select');
+};
+
+window.cancelEdit = function(){
+  state.ui.editId = null;
+  go('add');
+};
+
+window.deleteEntry = function(id){
+  if(!confirm('Удалить эту запись?')) return;
+  state.entries = state.entries.filter(x => x.id !== id);
+  if(state.ui.editId === id) state.ui.editId = null;
+  saveState();
+  haptic('error');
+  render();
+};
+
+/* ==========================================================
+   ЭКРАН: ГРАФИКИ
+   ========================================================== */
+function viewCharts(){
+  const today = todayStr();
+  const pi = periodIdxOf(today);
+  const list = entriesInPeriod(pi);
+  const hasData = list.length > 0;
+
+  if(!hasData){
+    return `
+      <div class="page-title">Аналитика</div>
+      <div class="page-sub">Диаграммы по текущей декаде</div>
+      <div class="empty">
+        <b>Пока нет данных</b>
+        Добавьте записи за несколько дней, чтобы увидеть динамику
+      </div>
+      <button class="btn" onclick="go('add')">Внести данные</button>
+    `;
+  }
+
+  return `
+  <div class="page-title">Аналитика</div>
+  <div class="page-sub">Диаграммы по текущей декаде — можно сохранить в PNG, JPEG или SVG</div>
+
+  <div class="chart-card">
+    <div class="chart-title">План и факт по категориям</div>
+    <div class="chart-desc">Сравнение выполнения по трём направлениям</div>
+    <div class="chart-wrap"><canvas id="ch-plan"></canvas></div>
+    <div class="export-row">
+      <button class="btn ghost" onclick="exportChart('ch-plan','plan-fact','png')">PNG</button>
+      <button class="btn ghost" onclick="exportChart('ch-plan','plan-fact','jpeg')">JPEG</button>
+      <button class="btn ghost" onclick="exportChart('ch-plan','plan-fact','svg')">SVG</button>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-title">Динамика по дням</div>
+    <div class="chart-desc">Выходы, продажи и выручка</div>
+    <div class="chart-wrap tall"><canvas id="ch-daily"></canvas></div>
+    <div class="export-row">
+      <button class="btn ghost" onclick="exportChart('ch-daily','daily-dynamics','png')">PNG</button>
+      <button class="btn ghost" onclick="exportChart('ch-daily','daily-dynamics','jpeg')">JPEG</button>
+      <button class="btn ghost" onclick="exportChart('ch-daily','daily-dynamics','svg')">SVG</button>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-title">Структура выручки</div>
+    <div class="chart-desc">Сопутствующие товары, услуги и основной объём</div>
+    <div class="chart-wrap"><canvas id="ch-struct"></canvas></div>
+    <div class="export-row">
+      <button class="btn ghost" onclick="exportChart('ch-struct','revenue-structure','png')">PNG</button>
+      <button class="btn ghost" onclick="exportChart('ch-struct','revenue-structure','jpeg')">JPEG</button>
+      <button class="btn ghost" onclick="exportChart('ch-struct','revenue-structure','svg')">SVG</button>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-title">Конверсия по дням</div>
+    <div class="chart-desc">Отношение продаж к выходам, %</div>
+    <div class="chart-wrap"><canvas id="ch-conv"></canvas></div>
+    <div class="export-row">
+      <button class="btn ghost" onclick="exportChart('ch-conv','conversion','png')">PNG</button>
+      <button class="btn ghost" onclick="exportChart('ch-conv','conversion','jpeg')">JPEG</button>
+      <button class="btn ghost" onclick="exportChart('ch-conv','conversion','svg')">SVG</button>
+    </div>
+  </div>
+  `;
+}
+
+let charts = {};
+function destroyCharts(){
+  Object.keys(charts).forEach(k => { try{ charts[k].destroy(); }catch(e){} });
+  charts = {};
+}
+
+function cv(name, fallback){
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
+function initCharts(){
+  if(typeof Chart === 'undefined') return;
+  destroyCharts();
+
+  const textColor = cv('--c-text', '#000');
+  const hintColor = cv('--c-hint', '#888');
+  const gridColor = 'rgba(128,128,128,0.16)';
+  const okColor = cv('--ok', '#2f9e5f');
+  const buttonColor = cv('--c-button', '#2f7cf6');
+
+  Chart.defaults.color = textColor;
+  Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  Chart.defaults.font.size = 10.5;
+  Chart.defaults.plugins.legend.labels.boxWidth = 10;
+  Chart.defaults.plugins.legend.labels.boxHeight = 10;
+  Chart.defaults.plugins.legend.labels.usePointStyle = true;
+  Chart.defaults.plugins.legend.labels.padding = 12;
+
+  const today = todayStr();
+  const pi = periodIdxOf(today);
+  const dayN = dayNumberInPeriod(today, pi);
+  const dates = periodDates(pi);
+  const list = entriesInPeriod(pi);
+  const sum = sumEntries(list);
+  const plan = planFor(dayN);
+
+  /* ---------- 1. План vs факт по категориям ---------- */
+  const el1 = document.getElementById('ch-plan');
+  if(el1){
+    charts.plan = new Chart(el1, {
+      type: 'bar',
+      data: {
+        labels: ['Финансы', 'Сопутств.', 'Услуги'],
+        datasets: [
+          {
+            label: 'Факт',
+            data: [sum.revenue, sum.related, sum.services],
+            backgroundColor: buttonColor,
+            borderRadius: 6,
+            maxBarThickness: 34
+          },
+          {
+            label: 'План',
+            data: [plan.fin, plan.related, plan.services],
+            backgroundColor: 'rgba(128,128,128,0.32)',
+            borderRadius: 6,
+            maxBarThickness: 34
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 350 },
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${fmtMoney(ctx.parsed.y)}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: { color: gridColor },
+            border: { display: false },
+            ticks: { callback: v => nfMoney.format(v) }
+          },
+          x: { grid: { display: false }, border: { display: false } }
+        }
+      }
+    });
+  }
+
+  /* ---------- 2. Динамика по дням ---------- */
+  const el2 = document.getElementById('ch-daily');
+  if(el2){
+    const labels = dates.map((d, i) => 'Д' + (i + 1));
+    const exitsArr = dates.map(d => {
+      const e = list.find(x => x.date === d);
+      return e ? num(e.exits) : 0;
+    });
+    const salesArr = dates.map(d => {
+      const e = list.find(x => x.date === d);
+      return e ? num(e.sales) : 0;
+    });
+    const revArr = dates.map(d => {
+      const e = list.find(x => x.date === d);
+      return e ? num(e.revenue) : 0;
+    });
+
+    charts.daily = new Chart(el2, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'bar',
+            label: 'Выходы',
+            data: exitsArr,
+            backgroundColor: 'rgba(128,128,128,0.35)',
+            borderRadius: 5,
+            maxBarThickness: 16,
+            yAxisID: 'y'
+          },
+          {
+            type: 'bar',
+            label: 'Продажи',
+            data: salesArr,
+            backgroundColor: buttonColor,
+            borderRadius: 5,
+            maxBarThickness: 16,
+            yAxisID: 'y'
+          },
+          {
+            type: 'line',
+            label: 'Выручка, ₽',
+            data: revArr,
+            borderColor: okColor,
+            backgroundColor: okColor,
+            borderWidth: 2,
+            pointRadius: 2.5,
+            pointHoverRadius: 4,
+            tension: 0.35,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 350 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                if(ctx.dataset.yAxisID === 'y1') return `${ctx.dataset.label}: ${fmtMoney(ctx.parsed.y)}`;
+                return `${ctx.dataset.label}: ${fmtNum(ctx.parsed.y)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            position: 'left',
+            grid: { color: gridColor },
+            border: { display: false },
+            ticks: { precision: 0 }
+          },
+          y1: {
+            beginAtZero: true,
+            position: 'right',
+            grid: { display: false },
+            border: { display: false },
+            ticks: { callback: v => nfMoney.format(v) }
+          },
+          x: { grid: { display: false }, border: { display: false } }
+        }
+      }
+    });
+  }
+
+  /* ---------- 3. Структура выручки ---------- */
+  const el3 = document.getElementById('ch-struct');
+  if(el3){
+    const other = Math.max(0, sum.revenue - sum.related - sum.services);
+    const structData = [sum.related, sum.services, other];
+    const structSum = structData.reduce((a, b) => a + b, 0);
+
+    charts.struct = new Chart(el3, {
+      type: 'doughnut',
+      data: {
+        labels: ['Сопутствующие', 'Услуги', 'Основной объём'],
+        datasets: [{
+          data: structSum > 0 ? structData : [1, 0, 0],
+          backgroundColor: [buttonColor, okColor, 'rgba(128,128,128,0.35)'],
+          borderWidth: 0,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '62%',
+        animation: { duration: 350 },
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const v = structSum > 0 ? ctx.parsed : 0;
+                const p = structSum > 0 ? (v / structSum * 100) : 0;
+                return `${ctx.label}: ${fmtMoney(v)} (${Math.round(p)}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  /* ---------- 4. Конверсия по дням ---------- */
+  const el4 = document.getElementById('ch-conv');
+  if(el4){
+    const labels = dates.map((d, i) => 'Д' + (i + 1));
+    const convArr = dates.map(d => {
+      const e = list.find(x => x.date === d);
+      if(!e) return null;
+      const ex = num(e.exits), sl = num(e.sales);
+      return ex > 0 ? +(sl / ex * 100).toFixed(1) : null;
+    });
+
+    charts.conv = new Chart(el4, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Конверсия, %',
+          data: convArr,
+          borderColor: buttonColor,
+          backgroundColor: 'rgba(47,124,246,0.12)',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBackgroundColor: buttonColor,
+          tension: 0.35,
+          fill: true,
+          spanGaps: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 350 },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => `Конверсия: ${ctx.parsed.y == null ? '—' : ctx.parsed.y + '%'}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            suggestedMax: 50,
+            grid: { color: gridColor },
+            border: { display: false },
+            ticks: { callback: v => v + '%' }
+          },
+          x: { grid: { display: false }, border: { display: false } }
+        }
+      }
+    });
+  }
+}
+
+/* ---------- Экспорт диаграмм ---------- */
+window.exportChart = function(canvasId, filename, format){
+  const src = document.getElementById(canvasId);
+  if(!src){ return; }
+
+  try{
+    const tmp = document.createElement('canvas');
+    tmp.width = src.width;
+    tmp.height = src.height;
+    const ctx = tmp.getContext('2d');
+
+    const bg = cv('--c-bg', '#ffffff');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, tmp.width, tmp.height);
+    ctx.drawImage(src, 0, 0);
+
+    let dataUrl, ext;
+
+    if(format === 'svg'){
+      const png = tmp.toDataURL('image/png');
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${tmp.width}" height="${tmp.height}" viewBox="0 0 ${tmp.width} ${tmp.height}">` +
+        `<image href="${png}" width="${tmp.width}" height="${tmp.height}"/></svg>`;
+      dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      ext = 'svg';
+    }else if(format === 'jpeg'){
+      dataUrl = tmp.toDataURL('image/jpeg', 0.92);
+      ext = 'jpg';
+    }else{
+      dataUrl = tmp.toDataURL('image/png');
+      ext = 'png';
+    }
+
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `${filename}-${todayStr()}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    haptic('success');
+    if(tg && tg.showAlert){
+      // мягкое уведомление только если браузер не поддерживает скачивание
+    }
+  }catch(err){
+    console.error(err);
+    if(tg && tg.showAlert) tg.showAlert('Не удалось сохранить файл. Попробуйте ещё раз.');
+    else alert('Не удалось сохранить файл.');
+  }
+};
+
+/* ==========================================================
+   ЭКРАН: СОВЕТЫ
+   ========================================================== */
+function buildTips(){
+  const today = todayStr();
+  const pi = periodIdxOf(today);
+  const dayN = dayNumberInPeriod(today, pi);
+  const list = entriesInPeriod(pi);
+  const sum = sumEntries(list);
+  const plan = planFor(dayN);
+  const tips = [];
+
+  const prevList = entriesInPeriod(pi - 1);
+  const prevSum = sumEntries(prevList);
+  const prevAvg = prevSum.sales > 0 ? prevSum.revenue / prevSum.sales : 0;
+
+  const conv = sum.exits > 0 ? sum.sales / sum.exits * 100 : 0;
+  const avg = sum.sales > 0 ? sum.revenue / sum.sales : 0;
+  const finPct = plan.fin > 0 ? sum.revenue / plan.fin * 100 : 0;
+  const relatedShare = sum.revenue > 0 ? sum.related / sum.revenue * 100 : 0;
+  const daysLeft = PERIOD_LEN - dayN;
+
+  /* ---- Нет данных ---- */
+  if(list.length === 0){
+    return [{
+      level: 'neutral',
+      title: 'Начните вести учёт',
+      html: 'Внесите данные хотя бы за один день — и здесь появятся персональные рекомендации по конверсии, среднему чеку и выполнению плана.'
+    }];
+  }
+
+  /* ---- 1. Конверсия ---- */
+  if(sum.exits >= 8){
+    if(conv < 15){
+      tips.push({
+        level: 'bad',
+        title: `Низкая конверсия — ${fmtPct(conv)}`,
+        html: `Из ${fmtNum(sum.exits)} выходов только ${fmtNum(sum.sales)} закончились продажей.
+          <ul>
+            <li>Подходите к покупателю в первые 30 секунд — не ждите, пока он сам обратится.</li>
+            <li>Отработайте скрипт приветствия и 2–3 вопроса на выявление потребности.</li>
+            <li>Всегда предлагайте минимум два варианта на выбор — это повышает вероятность решения.</li>
+            <li>Разберите один реальный диалог за день: где именно покупатель потерял интерес.</li>
+          </ul>`
+      });
+    }else if(conv < 25){
+      tips.push({
+        level: 'warn',
+        title: `Конверсия ${fmtPct(conv)} — есть куда расти`,
+        html: `Показатель ниже целевых 25%. Достаточно довести до продажи ещё ${Math.max(1, Math.ceil(sum.exits * 0.25 - sum.sales))} выход(ов), чтобы выйти в норму.
+          <ul>
+            <li>Усильте этап презентации: говорите о выгоде, а не о характеристиках.</li>
+            <li>Отработайте возражения «дорого» и «я подумаю» — заготовьте ответы заранее.</li>
+            <li>Фиксируйте этап, на котором чаще всего «сыпется» диалог.</li>
+          </ul>`
+      });
+    }else{
+      tips.push({
+        level: 'good',
+        title: `Конверсия ${fmtPct(conv)} — отличный результат`,
+        html: `Вы выше нормы 25%. Держите темп и делитесь приёмами с коллегами.
+          <ul>
+            <li>Проверьте, не растёт ли конверсия за счёт «лёгких» клиентов — расширьте базу.</li>
+            <li>Попробуйте увеличить количество выходов: при такой конверсии каждый выход приносит больше.</li>
+          </ul>`
+      });
+    }
+  }else{
+    tips.push({
+      level: 'neutral',
+      title: 'Мало данных по конверсии',
+      html: `Пока всего ${fmtNum(sum.exits)} выходов. Для достоверной оценки нужно не меньше 8–10 выходов — продолжайте вносить данные.`
+    });
+  }
+
+  /* ---- 2. Средний чек ---- */
+  if(sum.sales > 0){
+    if(prevAvg > 0 && avg < prevAvg * 0.85){
+      tips.push({
+        level: 'bad',
+        title: `Средний чек упал до ${fmtMoney(avg)}`,
+        html: `В прошлой декаде было ${fmtMoney(prevAvg)} — снижение на ${Math.round((1 - avg / prevAvg) * 100)}%.
+          <ul>
+            <li>К каждому основному товару предлагайте 2–3 сопутствующих позиции.</li>
+            <li>Используйте вопрос-связку: «К этому обычно берут…».</li>
+            <li>Готовьте комплекты заранее — комплект покупают охотнее, чем одну позицию.</li>
+            <li>Проверьте, не продаёте ли вы только акционные и самые дешёвые позиции.</li>
+          </ul>`
+      });
+    }else if(prevAvg > 0 && avg >= prevAvg){
+      tips.push({
+        level: 'good',
+        title: `Средний чек растёт — ${fmtMoney(avg)}`,
+        html: `Выше прошлой декады на ${Math.round((avg / prevAvg - 1) * 100)}%. Зафиксируйте, что именно помогло, и повторяйте это ежедневно.
+          <ul>
+            <li>Продолжайте предлагать сопутствующие товары к каждой продаже.</li>
+            <li>Пробуйте предлагать позицию на ступень выше — при высокой конверсии это работает.</li>
+          </ul>`
+      });
+    }else{
+      tips.push({
+        level: 'warn',
+        title: `Средний чек — ${fmtMoney(avg)}`,
+        html: `Пока нет истории для сравнения. Ориентир: добавление сопутствующих товаров к каждой второй продаже увеличивает чек на 10–20%.
+          <ul>
+            <li>Заведите привычку: не закрывать продажу без предложения дополнения.</li>
+            <li>Держите под рукой 3 топовых сопутствующих товара.</li>
+          </ul>`
+      });
+    }
+  }
+
+  /* ---- 3. Выполнение финансового плана ---- */
+  if(plan.fin > 0){
+    if(finPct < 80){
+      const need = Math.max(0, plan.fullFin - sum.revenue);
+      const perDay = daysLeft > 0 ? need / Math.max(1, daysLeft) : need;
+      tips.push({
+        level: 'bad',
+        title: `Отставание от плана — ${fmtPct(finPct)}`,
+        html: `Факт ${fmtMoney(sum.revenue)} из ${fmtMoney(plan.fin)} (план на ${dayN}-й день).
+          ${daysLeft > 0
+            ? `<ul><li>До конца декады осталось <b>${daysLeft} дн.</b></li>
+               <li>Нужно делать <b>${fmtMoney(perDay)}</b> в день сверх текущего темпа.</li>
+               <li>Это примерно <b>${Math.ceil(perDay / Math.max(1, avg || plan.fullFin))} продаж(и)</b> в день дополнительно.</li>
+               <li>Увеличьте число выходов: при текущей конверсии каждая дополнительная продажа — это ${sum.sales > 0 ? Math.max(1, Math.round(sum.exits / sum.sales)) : '—'} дополнительных выходов.</li></ul>`
+            : `<ul><li>Декада завершается сегодня — сфокусируйтесь на крупных чеках и допродажах.</li></ul>`}`
+      });
+    }else if(finPct < 100){
+      const need = Math.max(0, plan.fullFin - sum.revenue);
+      tips.push({
+        level: 'warn',
+        title: `Почти у цели — ${fmtPct(finPct)}`,
+        html: `Осталось ${fmtMoney(need)} до плана декады.
+          <ul>
+            <li>${daysLeft > 0 ? `Это ${fmtMoney(need / daysLeft)} в день на оставшиеся ${daysLeft} дн.` : 'Успейте закрыть сегодня.'}</li>
+            <li>Сфокусируйтесь на сопутствующих товарах — они быстрее всего добавляют сумму.</li>
+            <li>Проработайте «спящих» клиентов: повторные продажи идут легче.</li>
+          </ul>`
+      });
+    }else{
+      tips.push({
+        level: 'good',
+        title: `Финансовый план выполнен — ${fmtPct(finPct)}`,
+        html: `Вы уже заработали ${fmtMoney(sum.revenue)} при плане ${fmtMoney(plan.fin)}.
+          <ul>
+            <li>Каждая следующая продажа — сверх плана, это ваш бонус.</li>
+            <li>Проверьте, не выгораете ли: держите баланс темпа.</li>
+            <li>Поставьте себе личную цель на +10% к плану и попробуйте её взять.</li>
+          </ul>`
+      });
+    }
+  }
+
+  /* ---- 4. Сопутствующие товары ---- */
+  if(sum.revenue > 0 && plan.related > 0){
+    const relatedPct = sum.related / plan.related * 100;
+    if(relatedPct < 70){
+      tips.push({
+        level: 'bad',
+        title: `Сопутствующие товары — ${fmtPct(relatedPct)} от плана`,
+        html: `Доля сопутствующих в выручке ${Math.round(relatedShare)}% при ориентире ${state.settings.relatedPct}%.
+          <ul>
+            <li>Задавайте уточняющий вопрос после выбора основного товара: «Что ещё понадобится?».</li>
+            <li>Выкладывайте сопутствующие товары рядом с основными — визуальная близость работает.</li>
+            <li>Добавьте минимум одно предложение сопутствующего в каждый чек.</li>
+          </ul>`
+      });
+    }else if(relatedPct >= 100){
+      tips.push({
+        level: 'good',
+        title: `Сопутствующие товары — ${fmtPct(relatedPct)}`,
+        html: `Вы выполняете план по допродажам. Это самый рентабельный для вас блок.
+          <ul>
+            <li>Попробуйте поднять планку сопутствующих до 20% от финансового плана.</li>
+            <li>Обучите коллег своему приёму допродажи.</li>
+          </ul>`
+      });
+    }
+  }
+
+  /* ---- 5. Услуги ---- */
+  if(plan.services > 0){
+    const srvPct = sum.services / plan.services * 100;
+    if(sum.services <= 0){
+      tips.push({
+        level: 'warn',
+        title: 'Услуги не продавались',
+        html: `При выполнении финплана на 100% услуги должны давать ${fmtMoney(plan.fullServices)}.
+          <ul>
+            <li>Проверьте, знаете ли вы весь перечень услуг и их пользу для клиента.</li>
+            <li>Предлагайте услугу сразу при продаже товара — «в комплекте это выгоднее».</li>
+            <li>Запишите 3 фразы-перехода к услуге и используйте их каждый день.</li>
+          </ul>`
+      });
+    }else if(srvPct < 70){
+      tips.push({
+        level: 'warn',
+        title: `Услуги — ${fmtPct(srvPct)} от плана`,
+        html: `Факт ${fmtMoney(sum.services)} из ${fmtMoney(plan.services)}. Ориентир: 40 ₽ услуг на каждый процент выполнения финплана.
+          <ul>
+            <li>Услуга должна звучать как решение проблемы, а не как доп. расход.</li>
+            <li>Приводите пример: «Обычно это экономит клиенту…».</li>
+          </ul>`
+      });
+    }
+  }
+
+  /* ---- 6. Этап продаж ---- */
+  const stageCount = {};
+  list.forEach(e => { if(e.stage) stageCount[e.stage] = (stageCount[e.stage] || 0) + 1; });
+  const stagesSorted = Object.entries(stageCount).sort((a, b) => b[1] - a[1]);
+  if(stagesSorted.length){
+    const [topStage] = stagesSorted[0];
+    if(topStage === 'floor' && conv < 30){
+      tips.push({
+        level: 'warn',
+        title: 'Основная работа — на этапе выхода в зал',
+        html: `Вы много работаете на входе, но конверсия ${fmtPct(conv)}. Сместите фокус:
+          <ul>
+            <li>Меньше времени на «первый контакт», больше — на выявление потребности.</li>
+            <li>Не отпускайте клиента после приветствия — ведите к презентации.</li>
+            <li>Освойте скрипт перехода от знакомства к вопросу о задаче клиента.</li>
+          </ul>`
+      });
+    }
+    if(topStage === 'consult' && sum.sales > 0 && avg < 5000){
+      tips.push({
+        level: 'warn',
+        title: 'Много консультирования — низкий чек',
+        html: `Вы хорошо консультируете, но средний чек пока невысокий. Добавьте этап презентации:
+          <ul>
+            <li>После консультации обязательно покажите 2–3 подходящих варианта.</li>
+            <li>Расскажите о выгоде, а не только о характеристиках.</li>
+            <li>Завершайте консультацию конкретным предложением, а не открытым вопросом.</li>
+          </ul>`
+      });
+    }
+  }
+
+  /* ---- 7. Хорошие результаты в целом ---- */
+  if(finPct >= 100 && conv >= 25 && (prevAvg === 0 || avg >= prevAvg * 0.95)){
+    tips.push({
+      level: 'good',
+      title: 'Сильная декада — держите уровень',
+      html: `План выполнен, конверсия в норме, средний чек стабилен. Точки роста:
+        <ul>
+          <li>Увеличить долю услуг в выручке — самый быстрый прирост.</li>
+          <li>Попробовать работать с более крупным чеком.</li>
+          <li>Зафиксировать свои рабочие фразы и передать их коллегам.</li>
+        </ul>`
+    });
+  }
+
+  return tips;
+}
+
+function viewTips(){
+  const tips = buildTips();
+
+  let html = `
+  <div class="page-title">Умные рекомендации</div>
+  <div class="page-sub">Автоматический разбор текущей декады</div>
+  `;
+
+  tips.forEach(t => {
+    const lvl = t.level === 'good' ? 'good' : t.level === 'warn' ? 'warn' : t.level === 'bad' ? 'bad' : '';
+    html += `
+    <div class="tip ${lvl}">
+      <div class="tip-title"><span class="dot" style="${lvl ? '' : 'background:var(--c-hint)'}"></span>${esc(t.title)}</div>
+      <div class="tip-text">${t.html}</div>
+    </div>`;
+  });
+
+  // Распределение по этапам
+  const today = todayStr();
+  const pi = periodIdxOf(today);
+  const list = entriesInPeriod(pi);
+  const stageCount = {};
+  list.forEach(e => { if(e.stage) stageCount[e.stage] = (stageCount[e.stage] || 0) + 1; });
+  const totalStages = Object.values(stageCount).reduce((a, b) => a + b, 0);
+
+  if(totalStages > 0){
+    html += `<div class="section-header">Где шла основная работа</div>`;
+    html += `<div class="card">`;
+    STAGES.forEach(s => {
+      const c = stageCount[s.id] || 0;
+      const p = totalStages > 0 ? c / totalStages * 100 : 0;
+      html += `
+        <div style="margin-bottom:10px">
+          <div class="row-between" style="font-size:12.5px;margin-bottom:4px">
+            <span>${esc(s.label)}</span>
+            <b>${c} дн. · ${Math.round(p)}%</b>
+          </div>
+          <div class="bar" style="margin:0"><i style="width:${p}%;background:var(--c-button)"></i></div>
+        </div>`;
+    });
+    html += `</div>`;
+    html += `<div class="hint-box">Идеальный профиль продавца — равномерная работа на всех этапах. Если один этап занимает более 60% времени, остальные проседают.</div>`;
+  }
+
+  return html;
+}
+
+/* ==========================================================
+   ЭКРАН: ИСТОРИЯ
+   ========================================================== */
+function viewHist(){
+  const cur = periodIdxOf(todayStr());
+  const idxSet = new Set([cur]);
+  state.entries.forEach(e => { if(e.date) idxSet.add(periodIdxOf(e.date)); });
+  const idxs = [...idxSet].sort((a, b) => b - a).slice(0, 14);
+
+  if(state.entries.length === 0){
+    return `
+      <div class="page-title">История</div>
+      <div class="page-sub">Прошлые декады и сравнение</div>
+      <div class="empty">
+        <b>История пуста</b>
+        Записи появятся здесь после первого ввода данных
+      </div>
+      <button class="btn" onclick="go('add')">Внести данные</button>
+    `;
+  }
+
+  // Предрасчёт
+  const rows = idxs.map(idx => {
+    const list = entriesInPeriod(idx);
+    const sum = sumEntries(list);
+    const plan = planFor(PERIOD_LEN);
+    const conv = sum.exits > 0 ? sum.sales / sum.exits * 100 : 0;
+    const dates = periodDates(idx);
+    return { idx, list, sum, plan, conv, dates };
+  });
+
+  let html = `
+  <div class="page-title">История декад</div>
+  <div class="page-sub">Сравнение результатов по декадам</div>
+  `;
+
+  rows.forEach((r, i) => {
+    const finPct = r.plan.fullFin > 0 ? r.sum.revenue / r.plan.fullFin * 100 : 0;
+    const cls = pctClass(finPct);
+    const isCur = r.idx === cur;
+
+    // сравнение с предыдущей (более старой) декадой
+    const prev = rows[i + 1];
+    let deltaHtml = '';
+    if(prev && prev.sum.revenue > 0 && r.sum.revenue > 0){
+      const d = r.sum.revenue - prev.sum.revenue;
+      const sign = d >= 0 ? '+' : '−';
+      const cls2 = d >= 0 ? 'good' : 'bad';
+      const arrow = d >= 0 ? '↑' : '↓';
+      deltaHtml = `<div class="delta ${cls2}">${arrow} ${sign}${fmtMoney(Math.abs(d)).replace(' ₽',' ₽')} к предыдущей декаде</div>`;
+    }else if(prev){
+      deltaHtml = `<div class="delta muted">Нет данных для сравнения</div>`;
+    }
+
+    html += `
+    <div class="period-card">
+      <div class="period-head">
+        <div>
+          <div class="period-title">${fmtDateShort(r.dates[0])} — ${fmtDateShort(r.dates[9])}${isCur ? ' · текущая' : ''}</div>
+          <div class="period-sub">${r.list.length} запис${r.list.length === 1 ? 'ь' : r.list.length < 5 ? 'и' : 'ей'}</div>
+        </div>
+        <div class="badge ${cls}">${fmtPct(finPct)}</div>
+      </div>
+      <div class="period-stats">
+        <div><span>Финансы</span><b>${fmtMoney(r.sum.revenue)}</b></div>
+        <div><span>Сопутств.</span><b>${fmtMoney(r.sum.related)}</b></div>
+        <div><span>Услуги</span><b>${fmtMoney(r.sum.services)}</b></div>
+        <div><span>Конверсия</span><b>${r.sum.exits > 0 ? fmtPct(r.conv) : '—'}</b></div>
+        <div><span>Выходы</span><b>${fmtNum(r.sum.exits)}</b></div>
+        <div><span>Продажи</span><b>${fmtNum(r.sum.sales)}</b></div>
+      </div>
+      ${deltaHtml}
+    </div>`;
+  });
+
+  html += `
+  <div class="hint-box" style="margin-top:12px">
+    Процент выполнения считается от полного плана декады
+    (${fmtMoney(planFor(PERIOD_LEN).fullFin)} по финансам при текущих настройках).
+  </div>`;
+
+  return html;
+}
+
+function bindHistory(){ /* зарезервировано для будущих действий */ }
+
+/* ==========================================================
+   НАСТРОЙКИ (модальное окно)
+   ========================================================== */
+window.openSettings = function(){
+  const s = state.settings;
+  const modal = document.getElementById('modal');
+  const body = document.getElementById('modal-body');
+
+  body.innerHTML = `
+    <div class="modal-head">
+      <h3>Настройки плана</h3>
+      <button class="icon-btn" onclick="closeSettings()" aria-label="Закрыть">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <label class="field">
+      <span>План выходов за декаду</span>
+      <input type="number" id="s-exits" inputmode="numeric" min="0" step="1" value="${num(s.planExits)}">
+    </label>
+
+    <label class="field">
+      <span>Стоимость одного выхода, ₽</span>
+      <input type="number" id="s-cost" inputmode="decimal" min="0" step="10" value="${num(s.costPerExit)}">
+    </label>
+
+    <label class="field">
+      <span>Сопутствующие товары, % от финплана</span>
+      <input type="number" id="s-related" inputmode="decimal" min="0" max="100" step="1" value="${num(s.relatedPct)}">
+    </label>
+
+    <label class="field">
+      <span>Услуги, ₽ за 1% выполнения финплана</span>
+      <input type="number" id="s-service" inputmode="decimal" min="0" step="5" value="${num(s.servicePerPct)}">
+    </label>
+
+    <label class="field">
+      <span>Расчёт плана</span>
+      <select id="s-accrual">
+        <option value="1" ${s.accrual ? 'selected' : ''}>Накопительно по дням декады</option>
+        <option value="0" ${!s.accrual ? 'selected' : ''}>Сразу полный план на всю декаду</option>
+      </select>
+    </label>
+
+    <div class="hint-box" id="s-preview"></div>
+
+    <div style="margin-top:14px">
+      <button class="btn" onclick="saveSettings()">Сохранить</button>
+    </div>
+
+    <div class="hint-box" style="margin-top:12px">
+      <b>Как считается план.</b> Финансовый план = выходы × стоимость выхода.
+      Сопутствующие = ${num(s.relatedPct)}% от финплана.
+      Услуги = 100% выполнения финплана × ${num(s.servicePerPct)} ₽.
+    </div>
+  `;
+
+  modal.hidden = false;
+  bindSettingsPreview();
+  haptic('select');
+};
+
+function bindSettingsPreview(){
+  const upd = () => {
+    const exits = num(document.getElementById('s-exits').value);
+    const cost = num(document.getElementById('s-cost').value);
+    const relPct = num(document.getElementById('s-related').value);
+    const srvPct = num(document.getElementById('s-service').value);
+
+    const fin = exits * cost;
+    const rel = fin * relPct / 100;
+    const srv = 100 * srvPct;
+
+    const el = document.getElementById('s-preview');
+    if(el){
+      el.innerHTML = `
+        <b>План на декаду:</b><br>
+        Финансы — ${fmtMoney(fin)}<br>
+        Сопутствующие — ${fmtMoney(rel)}<br>
+        Услуги — ${fmtMoney(srv)}
+      `;
+    }
+  };
+  ['s-exits','s-cost','s-related','s-service'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input', upd);
+  });
+  upd();
+}
+
+window.saveSettings = function(){
+  state.settings.planExits    = Math.max(0, num(document.getElementById('s-exits').value));
+  state.settings.costPerExit  = Math.max(0, num(document.getElementById('s-cost').value));
+  state.settings.relatedPct   = Math.max(0, num(document.getElementById('s-related').value));
+  state.settings.servicePerPct = Math.max(0, num(document.getElementById('s-service').value));
+  state.settings.accrual      = document.getElementById('s-accrual').value === '1';
+
+  saveState();
+  closeSettings();
+  haptic('success');
+  render();
+};
+
+window.closeSettings = function(){
+  document.getElementById('modal').hidden = true;
+};
+
+document.getElementById('modal').addEventListener('click', ev => {
+  if(ev.target.id === 'modal') closeSettings();
+});
+
+/* ==========================================================
+   ТАБЫ
+   ========================================================== */
+document.getElementById('tabs').addEventListener('click', ev => {
+  const btn = ev.target.closest('.tab');
+  if(!btn) return;
+  haptic('light');
+  go(btn.dataset.tab);
+});
+
+/* ==========================================================
+   СТАРТ
+   ========================================================== */
+loadState();
+render();
+</script>
+</body>
+</html>
